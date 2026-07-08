@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ETA Sensor Integration (prerequisite)
+    url: https://github.com/Tidone/homeassistant_eta_integration
+    about: This card only visualizes data. Sensor problems belong to the ETA integration.
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: General Home Assistant questions.

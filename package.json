@@ -1,0 +1,42 @@
+{
+  "name": "eta-flow-card",
+  "version": "0.1.0",
+  "description": "Animated heat-flow Lovelace card for ETA pellet heating systems in Home Assistant",
+  "type": "module",
+  "main": "dist/eta-flow-card.js",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "demo": "npm run build && echo \"\\nOpen http://localhost:8080/demo/\\n\" && python3 -m http.server 8080",
+    "lint": "eslint \"src/**/*.ts\" && prettier --check \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix && prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "custom-card",
+    "hacs",
+    "eta",
+    "heating"
+  ],
+  "author": "Fabian Oraze",
+  "license": "MIT",
+  "dependencies": {
+    "custom-card-helpers": "^1.9.0",
+    "lit": "^3.1.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "rollup": "^4.18.0",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.3"
+  }
+}

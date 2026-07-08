@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Install project dependencies.
+set -e
+
+cd "$(dirname "$0")/.."
+
+npm ci

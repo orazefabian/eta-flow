@@ -1,0 +1,9 @@
+# Minimal Home Assistant config for local card development (devcontainer).
+default_config:
+
+# Register the built card as a Lovelace resource.
+lovelace:
+  mode: storage
+  resources:
+    - url: /local/eta-flow-card.js
+      type: module

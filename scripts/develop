@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Rebuild the card on every change (rollup watch).
+# Point a Home Assistant Lovelace resource at the built file to develop live.
+set -e
+
+cd "$(dirname "$0")/.."
+
+npm run watch

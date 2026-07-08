@@ -1,0 +1,6 @@
+{
+  "name": "ETA Flow Card",
+  "render_readme": true,
+  "filename": "eta-flow-card.js",
+  "homeassistant": "2024.1.0"
+}

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ETA Flow Card — local demo</title>
+
+    <!-- Material Design Icons webfont, so <ha-icon> renders real icons offline-ish (CDN). -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css"
+    />
+
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        background: #111;
+        color: #e1e1e1;
+        display: grid;
+        grid-template-columns: 420px 320px;
+        gap: 24px;
+        padding: 24px;
+        align-items: start;
+      }
+      h1 {
+        grid-column: 1 / -1;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+      .card-host {
+        width: 420px;
+      }
+      .controls {
+        background: #1c1c1c;
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .controls h2 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #9e9e9e;
+        margin: 0;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 0.9rem;
+      }
+      .row label {
+        color: #cfcfcf;
+      }
+      input[type="range"] {
+        width: 140px;
+      }
+      .val {
+        width: 56px;
+        text-align: right;
+        color: #9e9e9e;
+        font-variant-numeric: tabular-nums;
+      }
+      .hint {
+        grid-column: 1 / -1;
+        color: #8a8a8a;
+        font-size: 0.8rem;
+        max-width: 760px;
+      }
+      code {
+        background: #000;
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ETA Flow Card — local mock preview</h1>
+
+    <div class="card-host" id="card-host"></div>
+
+    <div class="controls" id="controls">
+      <h2>Mock data</h2>
+    </div>
+
+    <p class="hint">
+      This page loads the built <code>dist/eta-flow-card.js</code> with a mock Home Assistant
+      state — no real HA needed. Adjust the controls to watch nodes light up and flow dots
+      speed up / reverse. Run it with <code>npm run demo</code> then open
+      <code>http://localhost:8080/demo/</code>.
+    </p>
+
+    <script type="module">
+      // --- Minimal stubs for the HA custom elements the card uses -------------------
+
+      class HaCard extends HTMLElement {
+        constructor() {
+          super();
+          this.style.display = "block";
+          this.style.borderRadius = "12px";
+          this.style.overflow = "hidden";
+        }
+      }
+      customElements.define("ha-card", HaCard);
+
+      class HaIcon extends HTMLElement {
+        static get observedAttributes() {
+          return ["icon"];
+        }
+        connectedCallback() {
+          this._render();
+        }
+        attributeChangedCallback() {
+          this._render();
+        }
+        _render() {
+          const icon = (this.getAttribute("icon") || "").replace("mdi:", "mdi-");
+          this.innerHTML = `<span class="mdi ${icon}" style="font-size: var(--mdc-icon-size, 24px); line-height: 1; display: inline-block;"></span>`;
+        }
+      }
+      customElements.define("ha-icon", HaIcon);
+
+      // --- Load the actual card bundle ---------------------------------------------
+      await import("../dist/eta-flow-card.js");
+
+      // --- Mock model ---------------------------------------------------------------
+
+      // Each entity: [state, unit]
+      const model = {
+        "sensor.eta_puffer_ladezustand": { value: 57, unit: "%" },
+        "sensor.eta_puffer_temp_oben": { value: 68, unit: "°C" },
+        "sensor.eta_kessel_leistung": { value: 480, unit: "W" },
+        "sensor.eta_solar_temp": { value: 74, unit: "°C" },
+        "sensor.eta_warmwasser_temp": { value: 52, unit: "°C" },
+        "sensor.eta_heizkreis_vorlauf": { value: 41, unit: "°C" },
+        "sensor.eta_aussentemperatur": { value: 25, unit: "°C" },
+        "binary_sensor.eta_solarpumpe": { value: "on", unit: null },
+        "binary_sensor.eta_heizkreis_pumpe": { value: "on", unit: null },
+      };
+
+      const config = {
+        type: "custom:eta-flow-card",
+        title: "Heizung (Demo)",
+        nodes: {
+          puffer: {
+            primary: "sensor.eta_puffer_ladezustand",
+            secondary: "sensor.eta_puffer_temp_oben",
+          },
+          kessel: { primary: "sensor.eta_kessel_leistung" },
+          solar: { primary: "sensor.eta_solar_temp" },
+          warmwasser: { primary: "sensor.eta_warmwasser_temp" },
+          heizkreis: { primary: "sensor.eta_heizkreis_vorlauf" },
+          aussen: { primary: "sensor.eta_aussentemperatur" },
+        },
+        edges: {
+          solar_to_puffer: {
+            type: "state",
+            entity: "binary_sensor.eta_solarpumpe",
+            active_states: ["on"],
+          },
+          kessel_to_puffer: { type: "power", entity: "sensor.eta_kessel_leistung" },
+          puffer_to_warmwasser: {
+            type: "delta",
+            from_entity: "sensor.eta_puffer_temp_oben",
+            to_entity: "sensor.eta_warmwasser_temp",
+          },
+          puffer_to_heizkreis: {
+            type: "state",
+            entity: "binary_sensor.eta_heizkreis_pumpe",
+            active_states: ["on"],
+          },
+        },
+        solarpumpe: { entity: "binary_sensor.eta_solarpumpe" },
+      };
+
+      function buildHass() {
+        const states = {};
+        for (const [id, e] of Object.entries(model)) {
+          states[id] = {
+            entity_id: id,
+            state: String(e.value),
+            attributes: e.unit ? { unit_of_measurement: e.unit } : {},
+          };
+        }
+        return { states, localize: () => "", formatEntityState: () => "" };
+      }
+
+      const card = document.createElement("eta-flow-card");
+      card.setConfig(config);
+      card.hass = buildHass();
+      document.getElementById("card-host").appendChild(card);
+
+      function refresh() {
+        card.hass = buildHass();
+      }
+
+      // --- Controls -----------------------------------------------------------------
+
+      const controls = document.getElementById("controls");
+
+      function slider(label, id, min, max) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const val = document.createElement("span");
+        val.className = "val";
+        val.textContent = `${model[id].value}${model[id].unit ?? ""}`;
+        const input = document.createElement("input");
+        input.type = "range";
+        input.min = min;
+        input.max = max;
+        input.value = model[id].value;
+        input.addEventListener("input", () => {
+          model[id].value = Number(input.value);
+          val.textContent = `${model[id].value}${model[id].unit ?? ""}`;
+          refresh();
+        });
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.append(lab, input, val);
+        controls.appendChild(row);
+      }
+
+      function toggle(label, id) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = model[id].value === "on";
+        input.addEventListener("change", () => {
+          model[id].value = input.checked ? "on" : "off";
+          refresh();
+        });
+        row.append(lab, input);
+        controls.appendChild(row);
+      }
+
+      slider("Kessel Leistung (W)", "sensor.eta_kessel_leistung", 0, 5000);
+      slider("Puffer Ladung (%)", "sensor.eta_puffer_ladezustand", 0, 100);
+      slider("Puffer oben (°C)", "sensor.eta_puffer_temp_oben", 20, 90);
+      slider("Warmwasser (°C)", "sensor.eta_warmwasser_temp", 20, 90);
+      slider("Solar (°C)", "sensor.eta_solar_temp", 0, 120);
+      slider("Außen (°C)", "sensor.eta_aussentemperatur", -15, 40);
+      toggle("Solarpumpe", "binary_sensor.eta_solarpumpe");
+      toggle("Heizkreis Pumpe", "binary_sensor.eta_heizkreis_pumpe");
+    </script>
+  </body>
+</html>
