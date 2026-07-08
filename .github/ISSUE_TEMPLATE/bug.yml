@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a problem with the ETA Flow Card
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! This project is the **visual card only**. If a
+        sensor value is missing or wrong, please report it to the
+        [ETA integration](https://github.com/Tidone/homeassistant_eta_integration) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Card configuration (YAML)
+      description: Paste your `type: custom:eta-flow-card` card config.
+      render: yaml
+    validations:
+      required: true
+  - type: input
+    id: card-version
+    attributes:
+      label: Card version
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Browser console errors
+      description: Open the browser dev tools console and paste any errors.
+      render: shell

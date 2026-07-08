@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Produce the production bundle at dist/eta-flow-card.js.
+set -e
+
+cd "$(dirname "$0")/.."
+
+npm run build

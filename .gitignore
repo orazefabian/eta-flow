@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output (produced by CI release workflow, attached to GitHub release)
+dist/
+
+# caches / logs
+*.log
+npm-debug.log*
+.eslintcache
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+
+# local HA dev config (except reference)
+config/*
+!config/configuration.yaml

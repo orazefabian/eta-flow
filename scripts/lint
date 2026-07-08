@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Auto-format and lint the source.
+set -e
+
+cd "$(dirname "$0")/.."
+
+npm run lint:fix
+npm run typecheck
