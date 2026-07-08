@@ -14,6 +14,13 @@ export interface NodeConfig {
   icon?: string;
   /** Override the default accent color. */
   color?: string;
+  /**
+   * Circle radius in SVG units on the fixed 400x400 canvas, i.e. relative to the
+   * card size (e.g. 38 ≈ 9.5% of the card width). Overrides the role default.
+   */
+  radius?: number;
+  /** Ring outline thickness in SVG units. Overrides the role default. */
+  stroke_width?: number;
 }
 
 export interface EdgeConfig {
@@ -33,9 +40,17 @@ export interface EdgeConfig {
 }
 
 export interface SolarpumpeConfig {
-  /** Binary/state entity; the pump glyph pulses while active. */
+  /** Binary/state entity; the pump glyph spins while active. */
   entity?: string;
   active_states?: string[];
+  /** Override the label shown under the pump glyph. */
+  name?: string;
+  /** Override the pump mdi icon. */
+  icon?: string;
+  /** Override the pump accent color. */
+  color?: string;
+  /** Hide the text label under the glyph. */
+  hide_label?: boolean;
 }
 
 export interface EtaFlowCardConfig extends LovelaceCardConfig {

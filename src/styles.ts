@@ -3,9 +3,10 @@ import { css } from "lit";
 export const styles = css`
   :host {
     --eta-bg: #1c1c1c;
-    --eta-line: #3a3a3a;
+    --eta-line: #565656;
     --eta-text: #e1e1e1;
     --eta-text-dim: #9e9e9e;
+    --eta-node-fill: #2a2a2a;
   }
 
   ha-card {
@@ -37,20 +38,15 @@ export const styles = css`
     fill: currentColor;
   }
 
-  /* node circles */
+  /* node circles (outline thickness set per-node via the stroke-width attribute) */
   .ring {
-    fill: #2a2a2a;
-    stroke-width: 3.5;
+    fill: var(--eta-node-fill);
   }
   .ring.inactive {
-    opacity: 0.45;
+    opacity: 0.55;
   }
   .ring.active {
     filter: drop-shadow(0 0 5px currentColor);
-  }
-
-  .node-icon {
-    color: var(--eta-text);
   }
 
   .node-primary {
@@ -72,16 +68,30 @@ export const styles = css`
 
   /* corner badge (Außentemperatur) */
   .badge {
-    fill: #2a2a2a;
-    stroke-width: 2;
+    fill: var(--eta-node-fill);
   }
   .badge-text {
     fill: var(--eta-text);
-    font-size: 13px;
+    font-size: 12px;
     text-anchor: middle;
   }
 
   /* solarpumpe glyph */
+  .sp-ring {
+    fill: var(--eta-node-fill);
+    stroke-width: 2;
+  }
+  .sp-ring.inactive {
+    opacity: 0.55;
+  }
+  .sp-ring.active {
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  .sp-label {
+    fill: var(--eta-text-dim);
+    font-size: 11px;
+    text-anchor: start;
+  }
   .pump {
     transform-box: fill-box;
     transform-origin: center;
