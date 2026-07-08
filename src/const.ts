@@ -14,7 +14,12 @@ export interface RoleDef {
   /** Position on the 400x400 SVG canvas (center of the node). */
   x: number;
   y: number;
+  /** Default circle radius in SVG units on the 400x400 canvas. */
+  radius: number;
 }
+
+/** Default ring outline thickness (SVG units) when a node doesn't override it. */
+export const DEFAULT_STROKE_WIDTH = 2.5;
 
 /** Center hub. */
 export const PUFFER_ID = "puffer";
@@ -31,6 +36,7 @@ export const ROLES: Record<string, RoleDef> = {
     color: "#4caf50",
     x: 200,
     y: 200,
+    radius: 42,
   },
   solar: {
     id: "solar",
@@ -38,26 +44,52 @@ export const ROLES: Record<string, RoleDef> = {
     icon: "mdi:solar-power-variant",
     color: "#ff9800",
     x: 200,
-    y: 62,
+    y: 56,
+    radius: 34,
   },
-  kessel: { id: "kessel", label: "Kessel", icon: "mdi:fire", color: "#9c27b0", x: 200, y: 338 },
+  kessel: {
+    id: "kessel",
+    label: "Kessel",
+    icon: "mdi:fire",
+    color: "#9c27b0",
+    x: 200,
+    y: 344,
+    radius: 34,
+  },
   warmwasser: {
     id: "warmwasser",
     label: "Warmwasser",
-    icon: "mdi:water-thermometer",
+    icon: "mdi:water-boiler",
     color: "#03a9f4",
-    x: 62,
+    x: 56,
     y: 200,
+    radius: 34,
   },
   heizkreis: {
     id: "heizkreis",
     label: "Heizkreis",
     icon: "mdi:radiator",
     color: "#f44336",
-    x: 338,
+    x: 344,
     y: 200,
+    radius: 34,
   },
-  aussen: { id: "aussen", label: "Außen", icon: "mdi:thermometer", color: "#78909c", x: 60, y: 56 },
+  aussen: {
+    id: "aussen",
+    label: "Außen",
+    icon: "mdi:thermometer",
+    color: "#78909c",
+    x: 52,
+    y: 52,
+    radius: 24,
+  },
+};
+
+/** Default solarpumpe glyph. */
+export const SOLARPUMPE = {
+  label: "Solarpumpe",
+  icon: "mdi:pump",
+  radius: 15,
 };
 
 /** Roles rendered as full circular nodes (everything except the corner badge). */
@@ -83,5 +115,3 @@ export const EDGES: EdgeDef[] = [
   { key: "puffer_to_warmwasser", from: "puffer", to: "warmwasser" },
   { key: "puffer_to_heizkreis", from: "puffer", to: "heizkreis" },
 ];
-
-export const NODE_RADIUS = 46;

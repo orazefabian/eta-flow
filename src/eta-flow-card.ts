@@ -6,12 +6,12 @@ import {
   CARD_NAME,
   CARD_VERSION,
   CIRCLE_ROLES,
+  DEFAULT_STROKE_WIDTH,
   EDGES,
-  NODE_RADIUS,
   PUFFER_ID,
   ROLES,
+  SOLARPUMPE,
   type EdgeDef,
-  type RoleDef,
 } from "./const";
 import type { EtaFlowCardConfig } from "./types";
 import { computeEdgeFlow, computeNodeDisplay, isActive } from "./flow";
@@ -36,19 +36,25 @@ console.info(
   documentationURL: "https://github.com/orazefabian/eta-flow",
 });
 
-const GAP = NODE_RADIUS + 3;
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-function trim(from: RoleDef, to: RoleDef): { x1: number; y1: number; x2: number; y2: number } {
+interface Point {
+  x: number;
+  y: number;
+}
+
+/** Trim a line between two node centers so it starts/ends just outside each ring. */
+function trim(from: Point, to: Point, fromR: number, toR: number, gap = 4) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
   return {
-    x1: from.x + ux * GAP,
-    y1: from.y + uy * GAP,
-    x2: to.x - ux * GAP,
-    y2: to.y - uy * GAP,
+    x1: from.x + ux * (fromR + gap),
+    y1: from.y + uy * (fromR + gap),
+    x2: to.x - ux * (toR + gap),
+    y2: to.y - uy * (toR + gap),
   };
 }
 
@@ -94,10 +100,24 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     `;
   }
 
+  // ---- appearance resolvers ----------------------------------------------------
+
+  private _nodeColor(id: string): string {
+    return this._config.nodes?.[id]?.color ?? ROLES[id]?.color ?? "#4caf50";
+  }
+  private _nodeRadius(id: string): number {
+    return this._config.nodes?.[id]?.radius ?? ROLES[id]?.radius ?? 34;
+  }
+  private _nodeStroke(id: string): number {
+    return this._config.nodes?.[id]?.stroke_width ?? DEFAULT_STROKE_WIDTH;
+  }
+
+  // ---- edges -------------------------------------------------------------------
+
   private _renderEdge(edge: EdgeDef) {
     const from = ROLES[edge.from];
     const to = ROLES[edge.to];
-    const { x1, y1, x2, y2 } = trim(from, to);
+    const { x1, y1, x2, y2 } = trim(from, to, this._nodeRadius(from.id), this._nodeRadius(to.id));
     const pathId = `edge-${edge.key}`;
     const d = `M ${x1} ${y1} L ${x2} ${y2}`;
     const flow = computeEdgeFlow(this._config.edges?.[edge.key], this.hass);
@@ -132,6 +152,8 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     })}`;
   }
 
+  // ---- solarpumpe --------------------------------------------------------------
+
   private _renderSolarpumpe() {
     const cfg = this._config.solarpumpe;
     if (!cfg?.entity) return nothing;
@@ -140,19 +162,42 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const mx = (from.x + to.x) / 2;
     const my = (from.y + to.y) / 2;
     const on = isActive(this.hass, cfg.entity, cfg.active_states);
-    const color = ROLES.solar.color;
+    const color = cfg.color ?? ROLES.solar.color;
+    const r = SOLARPUMPE.radius;
+    const iconSize = Math.round(r * 1.15);
+    const label = cfg.name ?? SOLARPUMPE.label;
+
     return svg`
       <g style=${`color:${color}`}>
-        <circle cx=${mx} cy=${my} r="13" fill="#2a2a2a" stroke="currentColor" stroke-width="2"></circle>
-        <foreignObject x=${mx - 9} y=${my - 9} width="18" height="18" class=${`pump ${on ? "on" : ""}`}>
+        <circle
+          class=${`sp-ring ${on ? "active" : "inactive"}`}
+          cx=${mx}
+          cy=${my}
+          r=${r}
+          stroke="currentColor"
+        ></circle>
+        <foreignObject
+          x=${mx - iconSize / 2}
+          y=${my - iconSize / 2}
+          width=${iconSize}
+          height=${iconSize}
+          class=${`pump ${on ? "on" : ""}`}
+        >
           <ha-icon
-            icon="mdi:pump"
-            style="color: var(--eta-text); --mdc-icon-size: 18px; width:18px; height:18px;"
+            icon=${cfg.icon ?? SOLARPUMPE.icon}
+            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
           ></ha-icon>
         </foreignObject>
+        ${
+          cfg.hide_label
+            ? nothing
+            : svg`<text class="sp-label" x=${mx + r + 5} y=${my} dominant-baseline="central">${label}</text>`
+        }
       </g>
     `;
   }
+
+  // ---- nodes -------------------------------------------------------------------
 
   private _renderNode(id: string) {
     const role = ROLES[id];
@@ -160,14 +205,21 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     if (id !== PUFFER_ID && (!cfg || !cfg.primary)) return nothing; // hide unconfigured peripherals
     const disp = computeNodeDisplay(cfg, this.hass);
     const color = this._nodeColor(id);
+    const r = this._nodeRadius(id);
     const label = cfg?.name ?? role.label;
     const icon = cfg?.icon ?? role.icon;
     const active = this._nodeActive(id);
     const hasSecondary = !!disp.secondary;
 
-    const iconY = hasSecondary ? role.y - 26 : role.y - 22;
-    const primaryY = hasSecondary ? role.y + 8 : role.y + 14;
-    const secondaryY = role.y + 26;
+    const iconSize = clamp(Math.round(r * 0.62), 14, 40);
+    const primaryFont = clamp(r * 0.36, 12, 22).toFixed(1);
+    const secondaryFont = clamp(r * 0.28, 10, 16).toFixed(1);
+    const labelFont = clamp(r * 0.3, 11, 16).toFixed(1);
+
+    const iconCY = hasSecondary ? role.y - r * 0.42 : role.y - r * 0.3;
+    const primaryCY = hasSecondary ? role.y + r * 0.04 : role.y + r * 0.36;
+    const secondaryCY = role.y + r * 0.44;
+    const labelY = role.y + r + Number(labelFont) * 0.8 + 3;
 
     return svg`
       <g style=${`color:${color}`}>
@@ -175,29 +227,55 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           class=${`ring ${active ? "active" : "inactive"}`}
           cx=${role.x}
           cy=${role.y}
-          r=${NODE_RADIUS}
+          r=${r}
           stroke="currentColor"
+          stroke-width=${this._nodeStroke(id)}
         ></circle>
-        <foreignObject x=${role.x - 13} y=${iconY} width="26" height="26">
+        <foreignObject
+          x=${role.x - iconSize / 2}
+          y=${iconCY - iconSize / 2}
+          width=${iconSize}
+          height=${iconSize}
+        >
           <ha-icon
             icon=${icon}
-            style="color: var(--eta-text); --mdc-icon-size: 24px; width:24px; height:24px;"
+            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
           ></ha-icon>
         </foreignObject>
         ${
           disp.primary
-            ? svg`<text class="node-primary" x=${role.x} y=${primaryY}>${disp.primary}</text>`
+            ? svg`<text
+                class="node-primary"
+                x=${role.x}
+                y=${primaryCY}
+                dominant-baseline="central"
+                style=${`font-size:${primaryFont}px`}
+              >${disp.primary}</text>`
             : nothing
         }
         ${
           hasSecondary
-            ? svg`<text class="node-secondary" x=${role.x} y=${secondaryY}>${disp.secondary}</text>`
+            ? svg`<text
+                class="node-secondary"
+                x=${role.x}
+                y=${secondaryCY}
+                dominant-baseline="central"
+                style=${`font-size:${secondaryFont}px`}
+              >${disp.secondary}</text>`
             : nothing
         }
-        <text class="node-label" x=${role.x} y=${role.y + NODE_RADIUS + 16}>${label}</text>
+        <text
+          class="node-label"
+          x=${role.x}
+          y=${labelY}
+          dominant-baseline="central"
+          style=${`font-size:${labelFont}px`}
+        >${label}</text>
       </g>
     `;
   }
+
+  // ---- corner badge (Außentemperatur) -----------------------------------------
 
   private _renderBadge() {
     const role = ROLES[BADGE_ROLE];
@@ -205,24 +283,39 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     if (!cfg?.primary) return nothing;
     const disp = computeNodeDisplay(cfg, this.hass);
     const color = cfg.color ?? role.color;
+    const r = this._nodeRadius(BADGE_ROLE);
     const label = cfg.name ?? role.label;
+    const iconSize = clamp(Math.round(r * 0.6), 12, 28);
+
     return svg`
       <g style=${`color:${color}`}>
-        <circle class="badge" cx=${role.x} cy=${role.y} r="26" stroke="currentColor"></circle>
-        <foreignObject x=${role.x - 9} y=${role.y - 20} width="18" height="18">
+        <circle
+          class="badge"
+          cx=${role.x}
+          cy=${role.y}
+          r=${r}
+          stroke="currentColor"
+          stroke-width=${this._nodeStroke(BADGE_ROLE)}
+        ></circle>
+        <foreignObject
+          x=${role.x - iconSize / 2}
+          y=${role.y - r * 0.34 - iconSize / 2}
+          width=${iconSize}
+          height=${iconSize}
+        >
           <ha-icon
             icon=${cfg.icon ?? role.icon}
-            style="color: var(--eta-text); --mdc-icon-size: 18px; width:18px; height:18px;"
+            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
           ></ha-icon>
         </foreignObject>
-        ${disp.primary ? svg`<text class="badge-text" x=${role.x} y=${role.y + 10}>${disp.primary}</text>` : nothing}
-        <text class="node-label" x=${role.x} y=${role.y + 42}>${label}</text>
+        ${
+          disp.primary
+            ? svg`<text class="badge-text" x=${role.x} y=${role.y + r * 0.36} dominant-baseline="central">${disp.primary}</text>`
+            : nothing
+        }
+        <text class="node-label" x=${role.x} y=${role.y + r + 12} dominant-baseline="central">${label}</text>
       </g>
     `;
-  }
-
-  private _nodeColor(id: string): string {
-    return this._config.nodes?.[id]?.color ?? ROLES[id]?.color ?? "#4caf50";
   }
 
   /** A node "glows" when any edge touching it is actively flowing. */

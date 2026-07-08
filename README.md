@@ -107,7 +107,20 @@ solarpumpe:
 | `heizkreis`  | right          | flow temperature       |
 | `aussen`     | corner badge   | outside temperature    |
 
-Each node supports: `primary`, `secondary`, `name`, `icon` (mdi), `color`.
+Every node is fully customizable:
+
+| Option         | Description                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| `primary`      | entity shown as the big value (with its unit)                            |
+| `secondary`    | optional entity shown as a smaller value below                           |
+| `name`         | override the label under the circle                                      |
+| `icon`         | override the mdi icon (shown above the value)                            |
+| `color`        | ring / flow accent color                                                 |
+| `radius`       | circle size in canvas units (≈ % of card width; e.g. `34`), default per role |
+| `stroke_width` | outline thickness (default `2.5`)                                        |
+
+The `solarpumpe` glyph (shown on the Solar↔Puffer line) supports `entity`, `active_states`,
+`name`, `icon`, `color`, and `hide_label`.
 
 ### Edges
 

@@ -5,28 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ETA Flow Card — local demo</title>
 
-    <!-- Material Design Icons webfont, so <ha-icon> renders real icons offline-ish (CDN). -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css"
-    />
-
     <style>
       :root {
         color-scheme: dark;
       }
       body {
         margin: 0;
-        font-family:
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          Roboto,
-          sans-serif;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         background: #111;
         color: #e1e1e1;
         display: grid;
-        grid-template-columns: 420px 320px;
+        grid-template-columns: 440px 340px;
         gap: 24px;
         padding: 24px;
         align-items: start;
@@ -38,19 +27,22 @@
         margin: 0 0 4px;
       }
       .card-host {
-        width: 420px;
+        width: 440px;
+        position: sticky;
+        top: 24px;
       }
-      .controls {
+      .panel {
         background: #1c1c1c;
         border: 1px solid #333;
         border-radius: 12px;
         padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 12px;
+        margin-bottom: 16px;
       }
-      .controls h2 {
-        font-size: 0.85rem;
+      .panel h2 {
+        font-size: 0.8rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: #9e9e9e;
@@ -67,19 +59,35 @@
         color: #cfcfcf;
       }
       input[type="range"] {
-        width: 140px;
+        width: 150px;
+      }
+      select,
+      input[type="color"] {
+        background: #2a2a2a;
+        color: #e1e1e1;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+      input[type="color"] {
+        padding: 0;
+        width: 40px;
+        height: 26px;
       }
       .val {
-        width: 56px;
+        width: 60px;
         text-align: right;
         color: #9e9e9e;
         font-variant-numeric: tabular-nums;
+      }
+      .controls-col {
+        min-width: 0;
       }
       .hint {
         grid-column: 1 / -1;
         color: #8a8a8a;
         font-size: 0.8rem;
-        max-width: 760px;
+        max-width: 800px;
       }
       code {
         background: #000;
@@ -91,22 +99,19 @@
   <body>
     <h1>ETA Flow Card — local mock preview</h1>
 
-    <div class="card-host" id="card-host"></div>
+    <div class="card-host"><div id="card-host"></div></div>
 
-    <div class="controls" id="controls">
-      <h2>Mock data</h2>
-    </div>
+    <div class="controls-col" id="controls-col"></div>
 
     <p class="hint">
-      This page loads the built <code>dist/eta-flow-card.js</code> with a mock Home Assistant
-      state — no real HA needed. Adjust the controls to watch nodes light up and flow dots
-      speed up / reverse. Run it with <code>npm run demo</code> then open
-      <code>http://localhost:8080/demo/</code>.
+      Loads the built <code>dist/eta-flow-card.js</code> with a mock Home Assistant state — no
+      real HA needed. Run with <code>npm run demo</code> then open
+      <code>http://localhost:8080/demo/</code>. Everything you can tweak here maps to the card's
+      YAML config.
     </p>
 
     <script type="module">
       // --- Minimal stubs for the HA custom elements the card uses -------------------
-
       class HaCard extends HTMLElement {
         constructor() {
           super();
@@ -116,6 +121,24 @@
         }
       }
       customElements.define("ha-card", HaCard);
+
+      // Real Material Design Icons path data (offline) — the same icons HA renders.
+      const ICON_PATHS = {
+        "mdi:storage-tank":
+          "M17 6H16V5C16 3.9 15.1 3 14 3H10C8.9 3 8 3.9 8 5V6H7C3.69 6 1 8.69 1 12S3.69 18 7 18V21H9V18H15V21H17V18C20.31 18 23 15.31 23 12S20.31 6 17 6M10 5H14V6H10V5Z",
+        "mdi:solar-power-variant":
+          "M3.33 16H11V13H4L3.33 16M13 16H20.67L20 13H13V16M21.11 18H13V22H22L21.11 18M2 22H11V18H2.89L2 22M11 8H13V11H11V8M15.76 7.21L17.18 5.79L19.3 7.91L17.89 9.33L15.76 7.21M4.71 7.91L6.83 5.79L8.24 7.21L6.12 9.33L4.71 7.91M3 2H6V4H3V2M18 2H21V4H18V2M12 7C14.76 7 17 4.76 17 2H7C7 4.76 9.24 7 12 7Z",
+        "mdi:fire":
+          "M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2M14.5 17.5C14.22 17.74 13.76 18 13.4 18.1C12.28 18.5 11.16 17.94 10.5 17.28C11.69 17 12.4 16.12 12.61 15.23C12.78 14.43 12.46 13.77 12.33 13C12.21 12.26 12.23 11.63 12.5 10.94C12.69 11.32 12.89 11.7 13.13 12C13.9 13 15.11 13.44 15.37 14.8C15.41 14.94 15.43 15.08 15.43 15.23C15.46 16.05 15.1 16.95 14.5 17.5H14.5Z",
+        "mdi:water-boiler":
+          "M8 2C6.89 2 6 2.89 6 4V16C6 17.11 6.89 18 8 18H9V20H6V22H9C10.11 22 11 21.11 11 20V18H13V20C13 21.11 13.89 22 15 22H18V20H15V18H16C17.11 18 18 17.11 18 16V4C18 2.89 17.11 2 16 2H8M12 4.97A2 2 0 0 1 14 6.97A2 2 0 0 1 12 8.97A2 2 0 0 1 10 6.97A2 2 0 0 1 12 4.97M10 14.5H14V16H10V14.5Z",
+        "mdi:radiator":
+          "M7.95,3L6.53,5.19L7.95,7.4H7.94L5.95,10.5L4.22,9.6L5.64,7.39L4.22,5.19L6.22,2.09L7.95,3M13.95,2.89L12.53,5.1L13.95,7.3L13.94,7.31L11.95,10.4L10.22,9.5L11.64,7.3L10.22,5.1L12.22,2L13.95,2.89M20,2.89L18.56,5.1L20,7.3V7.31L18,10.4L16.25,9.5L17.67,7.3L16.25,5.1L18.25,2L20,2.89M2,22V14A2,2 0 0,1 4,12H20A2,2 0 0,1 22,14V22H20V20H4V22H2M6,14A1,1 0 0,0 5,15V17A1,1 0 0,0 6,18A1,1 0 0,0 7,17V15A1,1 0 0,0 6,14M10,14A1,1 0 0,0 9,15V17A1,1 0 0,0 10,18A1,1 0 0,0 11,17V15A1,1 0 0,0 10,14M14,14A1,1 0 0,0 13,15V17A1,1 0 0,0 14,18A1,1 0 0,0 15,17V15A1,1 0 0,0 14,14M18,14A1,1 0 0,0 17,15V17A1,1 0 0,0 18,18A1,1 0 0,0 19,17V15A1,1 0 0,0 18,14Z",
+        "mdi:thermometer":
+          "M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z",
+        "mdi:pump":
+          "M2 21V15H3.5C3.18 14.06 3 13.05 3 12C3 7.03 7.03 3 12 3H22V9H20.5C20.82 9.94 21 10.95 21 12C21 16.97 16.97 21 12 21H2M5 12C5 13.28 5.34 14.47 5.94 15.5L9.4 13.5C9.15 13.06 9 12.55 9 12C9 11.35 9.21 10.75 9.56 10.26L6.3 7.93C5.5 9.08 5 10.5 5 12M12 19C14.59 19 16.85 17.59 18.06 15.5L14.6 13.5C14.08 14.4 13.11 15 12 15L11.71 15L11.33 18.97L12 19M12 9C13.21 9 14.26 9.72 14.73 10.76L18.37 9.1C17.27 6.68 14.83 5 12 5V9M12 11C11.45 11 11 11.45 11 12C11 12.55 11.45 13 12 13C12.55 13 13 12.55 13 12C13 11.45 12.55 11 12 11Z",
+      };
 
       class HaIcon extends HTMLElement {
         static get observedAttributes() {
@@ -128,8 +151,8 @@
           this._render();
         }
         _render() {
-          const icon = (this.getAttribute("icon") || "").replace("mdi:", "mdi-");
-          this.innerHTML = `<span class="mdi ${icon}" style="font-size: var(--mdc-icon-size, 24px); line-height: 1; display: inline-block;"></span>`;
+          const path = ICON_PATHS[this.getAttribute("icon")] || "";
+          this.innerHTML = `<svg viewBox="0 0 24 24" width="var(--mdc-icon-size,24px)" height="var(--mdc-icon-size,24px)" style="width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);display:block;fill:currentColor"><path d="${path}"></path></svg>`;
         }
       }
       customElements.define("ha-icon", HaIcon);
@@ -137,13 +160,12 @@
       // --- Load the actual card bundle ---------------------------------------------
       await import("../dist/eta-flow-card.js");
 
-      // --- Mock model ---------------------------------------------------------------
-
-      // Each entity: [state, unit]
+      // --- Mock model: entity_id -> { value, unit } --------------------------------
       const model = {
         "sensor.eta_puffer_ladezustand": { value: 57, unit: "%" },
         "sensor.eta_puffer_temp_oben": { value: 68, unit: "°C" },
         "sensor.eta_kessel_leistung": { value: 480, unit: "W" },
+        "sensor.eta_kessel_modulation": { value: 57, unit: "%" },
         "sensor.eta_solar_temp": { value: 74, unit: "°C" },
         "sensor.eta_warmwasser_temp": { value: 52, unit: "°C" },
         "sensor.eta_heizkreis_vorlauf": { value: 41, unit: "°C" },
@@ -152,6 +174,7 @@
         "binary_sensor.eta_heizkreis_pumpe": { value: "on", unit: null },
       };
 
+      // --- Card config (mutated live by the controls) ------------------------------
       const config = {
         type: "custom:eta-flow-card",
         title: "Heizung (Demo)",
@@ -187,6 +210,18 @@
         solarpumpe: { entity: "binary_sensor.eta_solarpumpe" },
       };
 
+      // Defaults mirror src/const.ts, so appearance controls can show current values.
+      const NODE_DEFAULTS = {
+        puffer: { color: "#4caf50", radius: 42 },
+        solar: { color: "#ff9800", radius: 34 },
+        kessel: { color: "#9c27b0", radius: 34 },
+        warmwasser: { color: "#03a9f4", radius: 34 },
+        heizkreis: { color: "#f44336", radius: 34 },
+        aussen: { color: "#78909c", radius: 24 },
+      };
+      const DEFAULT_STROKE = 2.5;
+
+      // --- Wire card up -------------------------------------------------------------
       function buildHass() {
         const states = {};
         for (const [id, e] of Object.entries(model)) {
@@ -200,64 +235,150 @@
       }
 
       const card = document.createElement("eta-flow-card");
-      card.setConfig(config);
+      card.setConfig(structuredClone(config));
       card.hass = buildHass();
       document.getElementById("card-host").appendChild(card);
 
-      function refresh() {
-        card.hass = buildHass();
+      const refresh = () => (card.hass = buildHass());
+      const applyConfig = () => {
+        card.setConfig(structuredClone(config));
+        refresh();
+      };
+
+      // --- Control builders ---------------------------------------------------------
+      const col = document.getElementById("controls-col");
+      function panel(title) {
+        const p = document.createElement("div");
+        p.className = "panel";
+        const h = document.createElement("h2");
+        h.textContent = title;
+        p.appendChild(h);
+        col.appendChild(p);
+        return p;
       }
-
-      // --- Controls -----------------------------------------------------------------
-
-      const controls = document.getElementById("controls");
-
-      function slider(label, id, min, max) {
-        const row = document.createElement("div");
-        row.className = "row";
+      function row(parent, labelText) {
+        const r = document.createElement("div");
+        r.className = "row";
+        const l = document.createElement("label");
+        l.textContent = labelText;
+        r.appendChild(l);
+        parent.appendChild(r);
+        return r;
+      }
+      function slider(parent, labelText, id, min, max, step = 1) {
+        const r = row(parent, labelText);
         const val = document.createElement("span");
         val.className = "val";
-        val.textContent = `${model[id].value}${model[id].unit ?? ""}`;
+        const fmt = () => `${model[id].value}${model[id].unit ?? ""}`;
+        val.textContent = fmt();
         const input = document.createElement("input");
         input.type = "range";
-        input.min = min;
-        input.max = max;
-        input.value = model[id].value;
-        input.addEventListener("input", () => {
+        Object.assign(input, { min, max, step, value: model[id].value });
+        input.oninput = () => {
           model[id].value = Number(input.value);
-          val.textContent = `${model[id].value}${model[id].unit ?? ""}`;
+          val.textContent = fmt();
           refresh();
-        });
-        const lab = document.createElement("label");
-        lab.textContent = label;
-        row.append(lab, input, val);
-        controls.appendChild(row);
+        };
+        r.append(input, val);
       }
-
-      function toggle(label, id) {
-        const row = document.createElement("div");
-        row.className = "row";
-        const lab = document.createElement("label");
-        lab.textContent = label;
+      function toggle(parent, labelText, id) {
+        const r = row(parent, labelText);
         const input = document.createElement("input");
         input.type = "checkbox";
         input.checked = model[id].value === "on";
-        input.addEventListener("change", () => {
+        input.onchange = () => {
           model[id].value = input.checked ? "on" : "off";
           refresh();
-        });
-        row.append(lab, input);
-        controls.appendChild(row);
+        };
+        r.appendChild(input);
       }
 
-      slider("Kessel Leistung (W)", "sensor.eta_kessel_leistung", 0, 5000);
-      slider("Puffer Ladung (%)", "sensor.eta_puffer_ladezustand", 0, 100);
-      slider("Puffer oben (°C)", "sensor.eta_puffer_temp_oben", 20, 90);
-      slider("Warmwasser (°C)", "sensor.eta_warmwasser_temp", 20, 90);
-      slider("Solar (°C)", "sensor.eta_solar_temp", 0, 120);
-      slider("Außen (°C)", "sensor.eta_aussentemperatur", -15, 40);
-      toggle("Solarpumpe", "binary_sensor.eta_solarpumpe");
-      toggle("Heizkreis Pumpe", "binary_sensor.eta_heizkreis_pumpe");
+      // --- Data panel ---------------------------------------------------------------
+      const dataPanel = panel("Mock data");
+      slider(dataPanel, "Kessel Leistung (W)", "sensor.eta_kessel_leistung", 0, 5000, 10);
+      slider(dataPanel, "Kessel Modulation (%)", "sensor.eta_kessel_modulation", 0, 100);
+      slider(dataPanel, "Puffer Ladung (%)", "sensor.eta_puffer_ladezustand", 0, 100);
+      slider(dataPanel, "Puffer oben (°C)", "sensor.eta_puffer_temp_oben", 20, 90);
+      slider(dataPanel, "Warmwasser (°C)", "sensor.eta_warmwasser_temp", 20, 90);
+      slider(dataPanel, "Solar (°C)", "sensor.eta_solar_temp", 0, 120);
+      slider(dataPanel, "Außen (°C)", "sensor.eta_aussentemperatur", -15, 40);
+      toggle(dataPanel, "Solarpumpe", "binary_sensor.eta_solarpumpe");
+      toggle(dataPanel, "Heizkreis Pumpe", "binary_sensor.eta_heizkreis_pumpe");
+
+      // --- Kessel display mode ------------------------------------------------------
+      const kesselPanel = panel("Kessel value");
+      const kr = row(kesselPanel, "Show as");
+      const kSel = document.createElement("select");
+      kSel.innerHTML = `
+        <option value="power">Wattage (W)</option>
+        <option value="modulation">Modulation (%)</option>`;
+      kSel.onchange = () => {
+        const entity =
+          kSel.value === "power" ? "sensor.eta_kessel_leistung" : "sensor.eta_kessel_modulation";
+        config.nodes.kessel.primary = entity;
+        config.edges.kessel_to_puffer = { type: "power", entity };
+        applyConfig();
+      };
+      kr.appendChild(kSel);
+
+      // --- Appearance ---------------------------------------------------------------
+      const lookPanel = panel("Appearance (per node)");
+      const nodeRow = row(lookPanel, "Node");
+      const nodeSel = document.createElement("select");
+      nodeSel.innerHTML = Object.keys(NODE_DEFAULTS)
+        .map((id) => `<option value="${id}">${id}</option>`)
+        .join("");
+      nodeRow.appendChild(nodeSel);
+
+      const colorRow = row(lookPanel, "Color");
+      const colorInput = document.createElement("input");
+      colorInput.type = "color";
+      colorRow.appendChild(colorInput);
+
+      const radiusRow = row(lookPanel, "Radius");
+      const radiusInput = document.createElement("input");
+      radiusInput.type = "range";
+      Object.assign(radiusInput, { min: 18, max: 60, step: 1 });
+      const radiusVal = document.createElement("span");
+      radiusVal.className = "val";
+      radiusRow.append(radiusInput, radiusVal);
+
+      const strokeRow = row(lookPanel, "Outline");
+      const strokeInput = document.createElement("input");
+      strokeInput.type = "range";
+      Object.assign(strokeInput, { min: 0.5, max: 8, step: 0.5 });
+      const strokeVal = document.createElement("span");
+      strokeVal.className = "val";
+      strokeRow.append(strokeInput, strokeVal);
+
+      function loadNodeControls() {
+        const id = nodeSel.value;
+        const n = config.nodes[id] ?? (config.nodes[id] = {});
+        const color = n.color ?? NODE_DEFAULTS[id].color;
+        const radius = n.radius ?? NODE_DEFAULTS[id].radius;
+        const stroke = n.stroke_width ?? DEFAULT_STROKE;
+        colorInput.value = color;
+        radiusInput.value = radius;
+        radiusVal.textContent = radius;
+        strokeInput.value = stroke;
+        strokeVal.textContent = stroke;
+      }
+      nodeSel.onchange = loadNodeControls;
+      colorInput.oninput = () => {
+        config.nodes[nodeSel.value].color = colorInput.value;
+        applyConfig();
+      };
+      radiusInput.oninput = () => {
+        config.nodes[nodeSel.value].radius = Number(radiusInput.value);
+        radiusVal.textContent = radiusInput.value;
+        applyConfig();
+      };
+      strokeInput.oninput = () => {
+        config.nodes[nodeSel.value].stroke_width = Number(strokeInput.value);
+        strokeVal.textContent = strokeInput.value;
+        applyConfig();
+      };
+      loadNodeControls();
     </script>
   </body>
 </html>
