@@ -10,9 +10,9 @@ the boiler, buffer tank, solar collectors, hot water and heating circuits.
 
 Inspired by the look of [`power-flow-card-plus`][pfcp], but for heat instead of electricity.
 
-> _Screenshot placeholder — add `docs/screenshot.png` and it will render here._
->
-> <!-- ![ETA Flow Card](docs/screenshot.png) -->
+<p align="center">
+  <img src="docs/screenshot.png" alt="ETA Flow Card" width="440">
+</p>
 
 ## ⚠️ Prerequisite: the ETA sensor integration
 
