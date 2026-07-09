@@ -3,11 +3,34 @@ import type { LovelaceCardConfig } from "custom-card-helpers";
 /** How a connecting line decides whether (and how fast) it flows. */
 export type EdgeType = "power" | "state" | "delta";
 
+/** A pump glyph rendered on an edge; spins while its entity is active. */
+export interface PumpConfig {
+  /** Binary/state entity; the pump glyph spins while active. */
+  entity?: string;
+  active_states?: string[];
+  /** Override the label shown next to the glyph. */
+  name?: string;
+  /** Override the pump mdi icon. */
+  icon?: string;
+  /** Override the pump accent color. */
+  color?: string;
+  /** Hide the text label next to the glyph. */
+  hide_label?: boolean;
+}
+
+/** Backward-compatible alias for the top-level `solarpumpe:` block. */
+export type SolarpumpeConfig = PumpConfig;
+
 export interface NodeConfig {
   /** Entity whose state is shown as the node's primary value. */
   primary?: string;
   /** Optional entity shown as a smaller secondary value. */
   secondary?: string;
+  /**
+   * Optional text/state entity rendered as a small pill (e.g. the boiler's
+   * "Bereit"/"Heizen"/"Ausbrand" state). Takes the slot secondary would use.
+   */
+  state?: string;
   /** Override the default label. */
   name?: string;
   /** Override the default mdi icon. */
@@ -21,6 +44,26 @@ export interface NodeConfig {
   radius?: number;
   /** Ring outline thickness in SVG units. Overrides the role default. */
   stroke_width?: number;
+
+  // --- Buffer stratification (puffer node) -----------------------------------
+  /**
+   * Charge-% entity (0..100) that sets the stratified fill level. Falls back to
+   * `primary` when it is a numeric percentage.
+   */
+  level?: string;
+  /**
+   * Temperature entities ordered top → bottom. Used to color the stratified fill
+   * with a warm-top / cool-bottom gradient (the ETA Schichtpuffer look).
+   */
+  layers?: string[];
+
+  // --- Gauge nodes (e.g. pellet stock) ---------------------------------------
+  /** Render a small fill gauge under the value (default on for the `vorrat` badge). */
+  gauge?: boolean;
+  /** Gauge lower bound (default 0). */
+  min?: number;
+  /** Gauge upper bound (default 100). */
+  max?: number;
 }
 
 export interface EdgeConfig {
@@ -37,20 +80,17 @@ export interface EdgeConfig {
   threshold?: number;
   /** Reverse the visual dot direction. */
   invert?: boolean;
-}
-
-export interface SolarpumpeConfig {
-  /** Binary/state entity; the pump glyph spins while active. */
-  entity?: string;
-  active_states?: string[];
-  /** Override the label shown under the pump glyph. */
-  name?: string;
-  /** Override the pump mdi icon. */
-  icon?: string;
-  /** Override the pump accent color. */
-  color?: string;
-  /** Hide the text label under the glyph. */
-  hide_label?: boolean;
+  /**
+   * Magnitude that maps to full dot speed (default 5000, tuned for electrical
+   * watts). Set e.g. 15 for a pellet boiler reporting kW.
+   */
+  power_reference?: number;
+  /** Show the driving value as a small label at the edge midpoint. */
+  show_label?: boolean;
+  /** Optional entity to source the edge label from, instead of the driving entity. */
+  label_entity?: string;
+  /** A pump glyph rendered on this edge, spinning while its entity is active. */
+  pump?: PumpConfig;
 }
 
 export interface EtaFlowCardConfig extends LovelaceCardConfig {
@@ -58,7 +98,10 @@ export interface EtaFlowCardConfig extends LovelaceCardConfig {
   title?: string;
   nodes?: Record<string, NodeConfig>;
   edges?: Record<string, EdgeConfig>;
-  solarpumpe?: SolarpumpeConfig;
+  /** Backward-compatible shorthand for a pump on the solar → puffer edge. */
+  solarpumpe?: PumpConfig;
+  /** Show driving-value labels on every edge (per-edge `show_label` overrides). */
+  show_edge_labels?: boolean;
 }
 
 /** Result of evaluating an edge against the current states. */
@@ -74,5 +117,7 @@ export interface EdgeFlow {
 export interface NodeDisplay {
   primary?: string;
   secondary?: string;
+  /** Text state for the pill (see NodeConfig.state). */
+  state?: string;
   available: boolean;
 }
