@@ -138,6 +138,10 @@
           "M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z",
         "mdi:pump":
           "M2 21V15H3.5C3.18 14.06 3 13.05 3 12C3 7.03 7.03 3 12 3H22V9H20.5C20.82 9.94 21 10.95 21 12C21 16.97 16.97 21 12 21H2M5 12C5 13.28 5.34 14.47 5.94 15.5L9.4 13.5C9.15 13.06 9 12.55 9 12C9 11.35 9.21 10.75 9.56 10.26L6.3 7.93C5.5 9.08 5 10.5 5 12M12 19C14.59 19 16.85 17.59 18.06 15.5L14.6 13.5C14.08 14.4 13.11 15 12 15L11.71 15L11.33 18.97L12 19M12 9C13.21 9 14.26 9.72 14.73 10.76L18.37 9.1C17.27 6.68 14.83 5 12 5V9M12 11C11.45 11 11 11.45 11 12C11 12.55 11.45 13 12 13C12.55 13 13 12.55 13 12C13 11.45 12.55 11 12 11Z",
+        "mdi:silo":
+          "M15 7.8C14.6 4.5 11.8 2 8.5 2C6.8 2 5.1 2.7 3.9 3.9S2 6.8 2 8.5V22H15V9.8L18 11.6V22H20V12.8L22 14V12L15 7.8M11 20H6V18H11V20M11 16H6V14H11V16M11 12H6V10H11V12M4.3 7C4.9 5.2 6.6 4 8.5 4S12.1 5.2 12.7 7H4.3Z",
+        "mdi:heating-coil":
+          "M19 17C20.21 17 22 16.2 22 14S20.21 11 19 11H17V9H19C21.2 9 22 7.21 22 6C22 3.8 20.21 3 19 3H17V2H16V3H8V2H7V3H2V5H7V7H5C3.79 7 2 7.8 2 10S3.79 13 5 13H7V15H5C3.79 15 2 15.8 2 18S3.79 21 5 21H7V22H8V21H16V22H17V21H22V19H17V17H19M19 13C19.45 13 20 13.19 20 14S19.45 15 19 15H17V13H19M16 11H8V9H16V11M19 5C19.45 5 20 5.2 20 6C20 6.45 19.81 7 19 7H17V5H19M8 5H16V7H8V5M5 11C4.55 11 4 10.81 4 10S4.55 9 5 9H7V11H5M8 13H16V15H8V13M5 19C4.55 19 4 18.81 4 18S4.55 17 5 17H7V19H5M16 19H8V17H16V19Z",
       };
 
       class HaIcon extends HTMLElement {
@@ -164,30 +168,49 @@
       const model = {
         "sensor.eta_puffer_ladezustand": { value: 57, unit: "%" },
         "sensor.eta_puffer_temp_oben": { value: 68, unit: "°C" },
+        "sensor.eta_puffer_temp_mitte": { value: 52, unit: "°C" },
+        "sensor.eta_puffer_temp_unten": { value: 34, unit: "°C" },
         "sensor.eta_kessel_leistung": { value: 480, unit: "W" },
+        "sensor.eta_kessel_leistung_kw": { value: 12.4, unit: "kW" },
         "sensor.eta_kessel_modulation": { value: 57, unit: "%" },
+        "sensor.eta_kessel_status": { value: "Heizen", unit: null },
         "sensor.eta_solar_temp": { value: 74, unit: "°C" },
         "sensor.eta_warmwasser_temp": { value: 52, unit: "°C" },
         "sensor.eta_heizkreis_vorlauf": { value: 41, unit: "°C" },
+        "sensor.eta_heizkreis2_vorlauf": { value: 28, unit: "°C" },
         "sensor.eta_aussentemperatur": { value: 25, unit: "°C" },
+        "sensor.eta_pellet_vorrat": { value: 72, unit: "%" },
         "binary_sensor.eta_solarpumpe": { value: "on", unit: null },
         "binary_sensor.eta_heizkreis_pumpe": { value: "on", unit: null },
+        "binary_sensor.eta_heizkreis2_pumpe": { value: "on", unit: null },
       };
 
       // --- Card config (mutated live by the controls) ------------------------------
       const config = {
         type: "custom:eta-flow-card",
         title: "Heizung (Demo)",
+        show_edge_labels: true,
         nodes: {
           puffer: {
             primary: "sensor.eta_puffer_ladezustand",
             secondary: "sensor.eta_puffer_temp_oben",
+            level: "sensor.eta_puffer_ladezustand",
+            layers: [
+              "sensor.eta_puffer_temp_oben",
+              "sensor.eta_puffer_temp_mitte",
+              "sensor.eta_puffer_temp_unten",
+            ],
           },
-          kessel: { primary: "sensor.eta_kessel_leistung" },
+          kessel: {
+            primary: "sensor.eta_kessel_leistung",
+            state: "sensor.eta_kessel_status",
+          },
           solar: { primary: "sensor.eta_solar_temp" },
           warmwasser: { primary: "sensor.eta_warmwasser_temp" },
           heizkreis: { primary: "sensor.eta_heizkreis_vorlauf" },
+          heizkreis2: { primary: "sensor.eta_heizkreis2_vorlauf" },
           aussen: { primary: "sensor.eta_aussentemperatur" },
+          vorrat: { primary: "sensor.eta_pellet_vorrat" },
         },
         edges: {
           solar_to_puffer: {
@@ -205,6 +228,15 @@
             type: "state",
             entity: "binary_sensor.eta_heizkreis_pumpe",
             active_states: ["on"],
+            label_entity: "sensor.eta_heizkreis_vorlauf",
+            pump: { entity: "binary_sensor.eta_heizkreis_pumpe", hide_label: true },
+          },
+          puffer_to_heizkreis2: {
+            type: "state",
+            entity: "binary_sensor.eta_heizkreis2_pumpe",
+            active_states: ["on"],
+            label_entity: "sensor.eta_heizkreis2_vorlauf",
+            pump: { entity: "binary_sensor.eta_heizkreis2_pumpe", hide_label: true },
           },
         },
         solarpumpe: { entity: "binary_sensor.eta_solarpumpe" },
@@ -217,7 +249,9 @@
         kessel: { color: "#9c27b0", radius: 34 },
         warmwasser: { color: "#03a9f4", radius: 34 },
         heizkreis: { color: "#f44336", radius: 34 },
+        heizkreis2: { color: "#ec407a", radius: 30 },
         aussen: { color: "#78909c", radius: 24 },
+        vorrat: { color: "#a1887f", radius: 24 },
       };
       const DEFAULT_STROKE = 2.5;
 
@@ -296,14 +330,20 @@
       // --- Data panel ---------------------------------------------------------------
       const dataPanel = panel("Mock data");
       slider(dataPanel, "Kessel Leistung (W)", "sensor.eta_kessel_leistung", 0, 5000, 10);
+      slider(dataPanel, "Kessel Leistung (kW)", "sensor.eta_kessel_leistung_kw", 0, 30, 0.1);
       slider(dataPanel, "Kessel Modulation (%)", "sensor.eta_kessel_modulation", 0, 100);
       slider(dataPanel, "Puffer Ladung (%)", "sensor.eta_puffer_ladezustand", 0, 100);
       slider(dataPanel, "Puffer oben (°C)", "sensor.eta_puffer_temp_oben", 20, 90);
+      slider(dataPanel, "Puffer mitte (°C)", "sensor.eta_puffer_temp_mitte", 20, 90);
+      slider(dataPanel, "Puffer unten (°C)", "sensor.eta_puffer_temp_unten", 20, 90);
       slider(dataPanel, "Warmwasser (°C)", "sensor.eta_warmwasser_temp", 20, 90);
       slider(dataPanel, "Solar (°C)", "sensor.eta_solar_temp", 0, 120);
+      slider(dataPanel, "Heizkreis Vorlauf (°C)", "sensor.eta_heizkreis_vorlauf", 20, 70);
       slider(dataPanel, "Außen (°C)", "sensor.eta_aussentemperatur", -15, 40);
+      slider(dataPanel, "Pellet Vorrat (%)", "sensor.eta_pellet_vorrat", 0, 100);
       toggle(dataPanel, "Solarpumpe", "binary_sensor.eta_solarpumpe");
       toggle(dataPanel, "Heizkreis Pumpe", "binary_sensor.eta_heizkreis_pumpe");
+      toggle(dataPanel, "Heizkreis 2 Pumpe", "binary_sensor.eta_heizkreis2_pumpe");
 
       // --- Kessel display mode ------------------------------------------------------
       const kesselPanel = panel("Kessel value");
@@ -311,15 +351,50 @@
       const kSel = document.createElement("select");
       kSel.innerHTML = `
         <option value="power">Wattage (W)</option>
+        <option value="kw">Leistung (kW)</option>
         <option value="modulation">Modulation (%)</option>`;
       kSel.onchange = () => {
-        const entity =
-          kSel.value === "power" ? "sensor.eta_kessel_leistung" : "sensor.eta_kessel_modulation";
-        config.nodes.kessel.primary = entity;
-        config.edges.kessel_to_puffer = { type: "power", entity };
+        if (kSel.value === "kw") {
+          const entity = "sensor.eta_kessel_leistung_kw";
+          config.nodes.kessel.primary = entity;
+          // kW needs a smaller reference so the boiler edge animates sensibly.
+          config.edges.kessel_to_puffer = { type: "power", entity, power_reference: 15 };
+        } else {
+          const entity =
+            kSel.value === "power"
+              ? "sensor.eta_kessel_leistung"
+              : "sensor.eta_kessel_modulation";
+          config.nodes.kessel.primary = entity;
+          config.edges.kessel_to_puffer = { type: "power", entity };
+        }
+        config.nodes.kessel.state = "sensor.eta_kessel_status";
         applyConfig();
       };
       kr.appendChild(kSel);
+
+      // --- Feedback / layout panel --------------------------------------------------
+      const fbPanel = panel("Feedback & layout");
+      const elRow = row(fbPanel, "Edge value labels");
+      const elToggle = document.createElement("input");
+      elToggle.type = "checkbox";
+      elToggle.checked = !!config.show_edge_labels;
+      elToggle.onchange = () => {
+        config.show_edge_labels = elToggle.checked;
+        applyConfig();
+      };
+      elRow.appendChild(elToggle);
+
+      const hk2Row = row(fbPanel, "Heizkreis 2 (2nd circuit)");
+      const hk2Toggle = document.createElement("input");
+      hk2Toggle.type = "checkbox";
+      hk2Toggle.checked = !!config.nodes.heizkreis2.primary;
+      hk2Toggle.onchange = () => {
+        config.nodes.heizkreis2.primary = hk2Toggle.checked
+          ? "sensor.eta_heizkreis2_vorlauf"
+          : undefined;
+        applyConfig();
+      };
+      hk2Row.appendChild(hk2Toggle);
 
       // --- Appearance ---------------------------------------------------------------
       const lookPanel = panel("Appearance (per node)");

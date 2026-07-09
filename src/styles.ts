@@ -34,8 +34,25 @@ export const styles = css`
     fill: none;
   }
 
+  /* control link (e.g. outside temp -> heating circuit) */
+  .ctrl-line {
+    stroke: var(--eta-text-dim);
+    stroke-width: 1.2;
+    stroke-dasharray: 3 4;
+    fill: none;
+    opacity: 0.5;
+  }
+
   .dot {
     fill: currentColor;
+  }
+
+  /* edge value label */
+  .edge-label {
+    fill: var(--eta-text-dim);
+    font-size: 10px;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
   }
 
   /* node circles (outline thickness set per-node via the stroke-width attribute) */
@@ -47,6 +64,11 @@ export const styles = css`
   }
   .ring.active {
     filter: drop-shadow(0 0 5px currentColor);
+  }
+
+  /* stratified buffer fill */
+  .strat-fill {
+    opacity: 0.82;
   }
 
   .node-primary {
@@ -66,7 +88,17 @@ export const styles = css`
     text-anchor: middle;
   }
 
-  /* corner badge (Außentemperatur) */
+  /* text state pill (e.g. boiler Bereit/Heizen) */
+  .pill-bg {
+    fill: currentColor;
+    opacity: 0.22;
+  }
+  .pill-text {
+    fill: var(--eta-text);
+    text-anchor: middle;
+  }
+
+  /* corner badge (Außentemperatur, Pelletvorrat) */
   .badge {
     fill: var(--eta-node-fill);
   }
@@ -76,18 +108,27 @@ export const styles = css`
     text-anchor: middle;
   }
 
-  /* solarpumpe glyph */
-  .sp-ring {
+  /* badge fill gauge */
+  .gauge-bg {
+    fill: currentColor;
+    opacity: 0.2;
+  }
+  .gauge-fill {
+    fill: currentColor;
+  }
+
+  /* pump glyph (any edge) */
+  .pump-ring {
     fill: var(--eta-node-fill);
     stroke-width: 2;
   }
-  .sp-ring.inactive {
+  .pump-ring.inactive {
     opacity: 0.55;
   }
-  .sp-ring.active {
+  .pump-ring.active {
     filter: drop-shadow(0 0 4px currentColor);
   }
-  .sp-label {
+  .pump-label {
     fill: var(--eta-text-dim);
     font-size: 11px;
     text-anchor: start;
