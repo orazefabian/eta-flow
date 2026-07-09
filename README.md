@@ -5,8 +5,9 @@
 ![license][license-badge]
 
 An animated heat-flow card for [Home Assistant][ha] that visualizes an
-**ETA pellet heating** system — glowing nodes and flowing dots showing heat moving between
-the boiler, buffer tank, solar collectors, hot water and heating circuits.
+**ETA heating** system (pellet, log/wood or combined) — glowing nodes and flowing dots
+showing heat moving between the boiler, buffer tank, solar collectors, hot water and
+heating circuits.
 
 Inspired by the look of [`power-flow-card-plus`][pfcp], but for heat instead of electricity.
 
@@ -124,18 +125,23 @@ solarpumpe: # shorthand for a pump on the solar_to_puffer edge
 
 ### Nodes
 
-| Key          | Position          | Typical value                     |
-| ------------ | ----------------- | --------------------------------- |
-| `puffer`     | center (hub)      | charge % + stratified temperatures |
-| `solar`      | top               | collector temperature             |
-| `kessel`     | bottom            | output % / kW + state             |
-| `warmwasser` | left              | DHW temperature                   |
-| `heizkreis`  | right             | flow temperature                  |
-| `heizkreis2` | bottom-right      | 2nd circuit flow temperature      |
-| `aussen`     | top-right badge   | outside temperature               |
-| `vorrat`     | bottom-left gauge | pellet stock (%)                  |
+The card ships with ETA **default roles**, but the layout is a fully configurable
+node/edge graph — you can recolor, relabel, resize, **reposition**, hide, or **add
+entirely new nodes**, and rewire or add **edges**. The defaults:
 
-Every node is fully customizable:
+| Key          | Default position  | Typical value                      |
+| ------------ | ----------------- | ---------------------------------- |
+| `puffer`     | center (hub)      | charge % + stratified temperatures |
+| `solar`      | top               | collector temperature              |
+| `kessel`     | bottom            | boiler temp / state                |
+| `warmwasser` | left              | DHW temperature                    |
+| `heizkreis`  | right             | flow temperature                   |
+| `heizkreis2` | bottom-right      | 2nd circuit flow temperature       |
+| `aussen`     | top-right badge   | outside temperature                |
+| `vorrat`     | bottom-left gauge | fuel/supply gauge (e.g. pellets)   |
+
+A node is drawn only when it has data (a `primary`, `level`, or `layers`); the Puffer hub
+always shows. Every node is fully customizable:
 
 | Option         | Description                                                              |
 | -------------- | ------------------------------------------------------------------------ |
@@ -147,13 +153,29 @@ Every node is fully customizable:
 | `color`        | ring / flow accent color                                                 |
 | `radius`       | circle size in canvas units (≈ % of card width; e.g. `34`), default per role |
 | `stroke_width` | outline thickness (default `2.5`)                                        |
+| `x`, `y`       | center position on the `0..400` canvas (required for custom nodes)       |
+| `kind`         | `circle` (default), `badge`, or `gauge`                                  |
+| `hidden`       | force-hide a node even if it has data                                    |
 
-**Puffer stratification** (buffer only): `level` sets the fill height (0..100 charge %,
-falls back to `primary`); `layers` is a top→bottom list of temperature entities whose values
-color the fill with a warm-top / cool-bottom gradient.
+**Puffer stratification** (any node with `level`/`layers`): `level` sets the fill height
+(0..100 %, falls back to `primary`); `layers` is a top→bottom list of temperature entities
+whose values color the fill with a warm-top / cool-bottom gradient.
 
-**Gauge nodes** (e.g. `vorrat`): a fill bar is drawn under the value; tune its range with
+**Gauge nodes** (`kind: gauge`): a fill bar is drawn under the value; tune its range with
 `gauge: true|false`, `min`, and `max` (default `0`..`100`).
+
+**Custom nodes** — add any node with an `x`/`y` position:
+
+```yaml
+nodes:
+  keller:
+    x: 90
+    y: 330
+    name: Keller
+    icon: mdi:home-thermometer
+    color: "#26c6da"
+    primary: sensor.keller_temp
+```
 
 ### Pumps
 
@@ -163,9 +185,10 @@ Any edge can carry a spinning **pump glyph** via a `pump:` block
 
 ### Edges
 
-Dots travel `from → to` when active. The five edge keys are fixed:
-`solar_to_puffer`, `kessel_to_puffer`, `puffer_to_warmwasser`, `puffer_to_heizkreis`,
-`puffer_to_heizkreis2`.
+Dots travel `from → to` when active. The default edge keys are `solar_to_puffer`,
+`kessel_to_puffer`, `puffer_to_warmwasser`, `puffer_to_heizkreis`, `puffer_to_heizkreis2`.
+Set `from`/`to` (node ids) on any edge to **rewire** it, or add a new key with `from`/`to`
+to create a **custom edge** — e.g. `puffer_to_keller: { from: puffer, to: keller, ... }`.
 
 | `type`  | Active when…                                   | Fields                          |
 | ------- | ---------------------------------------------- | ------------------------------- |
@@ -175,10 +198,15 @@ Dots travel `from → to` when active. The five edge keys are fixed:
 
 For `type: power`, a negative value reverses the dot direction; `invert: true` flips it.
 `power_reference` is the magnitude that maps to full dot speed (default `5000`, tuned for
-watts — set it to ~`15` for a boiler reporting kW).
+watts). For a **wood/log boiler** with no power sensor, drive the charge edge from the
+**Abgasgebläse** (flue-gas blower RPM) — e.g. `entity: sensor.<...>_abgasgeblase`,
+`threshold: 50`, `power_reference: 1500` — so the dots flow while combustion is active.
 
 Set `show_edge_labels: true` at the card level (or `show_label: true` per edge) to print the
 driving value beside each connection; `label_entity` overrides which entity the label reads.
+
+**Control links** — thin dashed, non-hydraulic hints (default: Außen → Heizkreis, i.e.
+weather compensation). Override with `control_links: [{ from: aussen, to: heizkreis }]`.
 
 ## Development
 
