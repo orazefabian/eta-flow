@@ -31,5 +31,13 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Build (smoke test)
+      - name: Build
         run: npm run build
+
+      - name: Verify committed bundle is up to date
+        run: |
+          if ! git diff --quiet -- dist/eta-flow-card.js; then
+            echo "::error::dist/eta-flow-card.js is stale. Run 'npm run build' and commit the result."
+            git --no-pager diff --stat -- dist/eta-flow-card.js
+            exit 1
+          fi
