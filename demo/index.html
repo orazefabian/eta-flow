@@ -170,9 +170,9 @@
         "sensor.eta_puffer_temp_oben": { value: 68, unit: "°C" },
         "sensor.eta_puffer_temp_mitte": { value: 52, unit: "°C" },
         "sensor.eta_puffer_temp_unten": { value: 34, unit: "°C" },
-        "sensor.eta_kessel_leistung": { value: 480, unit: "W" },
-        "sensor.eta_kessel_leistung_kw": { value: 12.4, unit: "kW" },
-        "sensor.eta_kessel_modulation": { value: 57, unit: "%" },
+        "sensor.eta_kessel_temp": { value: 78, unit: "°C" },
+        "sensor.eta_kessel_abgas": { value: 142, unit: "°C" },
+        "sensor.eta_kessel_abgasgeblase": { value: 1180, unit: "U/min" },
         "sensor.eta_kessel_status": { value: "Heizen", unit: null },
         "sensor.eta_solar_temp": { value: 74, unit: "°C" },
         "sensor.eta_warmwasser_temp": { value: 52, unit: "°C" },
@@ -202,7 +202,8 @@
             ],
           },
           kessel: {
-            primary: "sensor.eta_kessel_leistung",
+            primary: "sensor.eta_kessel_temp", // Kesseltemperatur (wood boiler)
+            secondary: "sensor.eta_kessel_abgas", // Abgastemperatur
             state: "sensor.eta_kessel_status",
           },
           solar: { primary: "sensor.eta_solar_temp" },
@@ -218,7 +219,13 @@
             entity: "binary_sensor.eta_solarpumpe",
             active_states: ["on"],
           },
-          kessel_to_puffer: { type: "power", entity: "sensor.eta_kessel_leistung" },
+          kessel_to_puffer: {
+            // Blower RPM drives the charge: faster burn → faster dots.
+            type: "power",
+            entity: "sensor.eta_kessel_abgasgeblase",
+            threshold: 50,
+            power_reference: 1500,
+          },
           puffer_to_warmwasser: {
             type: "delta",
             from_entity: "sensor.eta_puffer_temp_oben",
@@ -244,14 +251,14 @@
 
       // Defaults mirror src/const.ts, so appearance controls can show current values.
       const NODE_DEFAULTS = {
-        puffer: { color: "#4caf50", radius: 42 },
-        solar: { color: "#ff9800", radius: 34 },
-        kessel: { color: "#9c27b0", radius: 34 },
-        warmwasser: { color: "#03a9f4", radius: 34 },
-        heizkreis: { color: "#f44336", radius: 34 },
-        heizkreis2: { color: "#ec407a", radius: 30 },
-        aussen: { color: "#78909c", radius: 24 },
-        vorrat: { color: "#a1887f", radius: 24 },
+        puffer: { color: "#4caf50", radius: 42, x: 200, y: 200 },
+        solar: { color: "#ff9800", radius: 34, x: 200, y: 56 },
+        kessel: { color: "#9c27b0", radius: 34, x: 200, y: 344 },
+        warmwasser: { color: "#03a9f4", radius: 34, x: 56, y: 200 },
+        heizkreis: { color: "#f44336", radius: 34, x: 344, y: 200 },
+        heizkreis2: { color: "#ec407a", radius: 30, x: 322, y: 322 },
+        aussen: { color: "#78909c", radius: 24, x: 346, y: 54 },
+        vorrat: { color: "#a1887f", radius: 24, x: 54, y: 346 },
       };
       const DEFAULT_STROKE = 2.5;
 
@@ -329,9 +336,9 @@
 
       // --- Data panel ---------------------------------------------------------------
       const dataPanel = panel("Mock data");
-      slider(dataPanel, "Kessel Leistung (W)", "sensor.eta_kessel_leistung", 0, 5000, 10);
-      slider(dataPanel, "Kessel Leistung (kW)", "sensor.eta_kessel_leistung_kw", 0, 30, 0.1);
-      slider(dataPanel, "Kessel Modulation (%)", "sensor.eta_kessel_modulation", 0, 100);
+      slider(dataPanel, "Abgasgebläse (U/min)", "sensor.eta_kessel_abgasgeblase", 0, 1600, 10);
+      slider(dataPanel, "Kesseltemp (°C)", "sensor.eta_kessel_temp", 20, 90);
+      slider(dataPanel, "Abgas (°C)", "sensor.eta_kessel_abgas", 20, 220);
       slider(dataPanel, "Puffer Ladung (%)", "sensor.eta_puffer_ladezustand", 0, 100);
       slider(dataPanel, "Puffer oben (°C)", "sensor.eta_puffer_temp_oben", 20, 90);
       slider(dataPanel, "Puffer mitte (°C)", "sensor.eta_puffer_temp_mitte", 20, 90);
@@ -340,34 +347,21 @@
       slider(dataPanel, "Solar (°C)", "sensor.eta_solar_temp", 0, 120);
       slider(dataPanel, "Heizkreis Vorlauf (°C)", "sensor.eta_heizkreis_vorlauf", 20, 70);
       slider(dataPanel, "Außen (°C)", "sensor.eta_aussentemperatur", -15, 40);
-      slider(dataPanel, "Pellet Vorrat (%)", "sensor.eta_pellet_vorrat", 0, 100);
+      slider(dataPanel, "Vorrat (%)", "sensor.eta_pellet_vorrat", 0, 100);
       toggle(dataPanel, "Solarpumpe", "binary_sensor.eta_solarpumpe");
       toggle(dataPanel, "Heizkreis Pumpe", "binary_sensor.eta_heizkreis_pumpe");
       toggle(dataPanel, "Heizkreis 2 Pumpe", "binary_sensor.eta_heizkreis2_pumpe");
 
       // --- Kessel display mode ------------------------------------------------------
       const kesselPanel = panel("Kessel value");
-      const kr = row(kesselPanel, "Show as");
+      const kr = row(kesselPanel, "Primary shows");
       const kSel = document.createElement("select");
       kSel.innerHTML = `
-        <option value="power">Wattage (W)</option>
-        <option value="kw">Leistung (kW)</option>
-        <option value="modulation">Modulation (%)</option>`;
+        <option value="temp">Kesseltemp (°C)</option>
+        <option value="abgas">Abgas (°C)</option>`;
       kSel.onchange = () => {
-        if (kSel.value === "kw") {
-          const entity = "sensor.eta_kessel_leistung_kw";
-          config.nodes.kessel.primary = entity;
-          // kW needs a smaller reference so the boiler edge animates sensibly.
-          config.edges.kessel_to_puffer = { type: "power", entity, power_reference: 15 };
-        } else {
-          const entity =
-            kSel.value === "power"
-              ? "sensor.eta_kessel_leistung"
-              : "sensor.eta_kessel_modulation";
-          config.nodes.kessel.primary = entity;
-          config.edges.kessel_to_puffer = { type: "power", entity };
-        }
-        config.nodes.kessel.state = "sensor.eta_kessel_status";
+        config.nodes.kessel.primary =
+          kSel.value === "abgas" ? "sensor.eta_kessel_abgas" : "sensor.eta_kessel_temp";
         applyConfig();
       };
       kr.appendChild(kSel);
@@ -426,17 +420,35 @@
       strokeVal.className = "val";
       strokeRow.append(strokeInput, strokeVal);
 
+      const xRow = row(lookPanel, "Position X");
+      const xInput = document.createElement("input");
+      xInput.type = "range";
+      Object.assign(xInput, { min: 20, max: 380, step: 1 });
+      const xVal = document.createElement("span");
+      xVal.className = "val";
+      xRow.append(xInput, xVal);
+
+      const yRow = row(lookPanel, "Position Y");
+      const yInput = document.createElement("input");
+      yInput.type = "range";
+      Object.assign(yInput, { min: 20, max: 380, step: 1 });
+      const yVal = document.createElement("span");
+      yVal.className = "val";
+      yRow.append(yInput, yVal);
+
       function loadNodeControls() {
         const id = nodeSel.value;
         const n = config.nodes[id] ?? (config.nodes[id] = {});
-        const color = n.color ?? NODE_DEFAULTS[id].color;
-        const radius = n.radius ?? NODE_DEFAULTS[id].radius;
-        const stroke = n.stroke_width ?? DEFAULT_STROKE;
-        colorInput.value = color;
-        radiusInput.value = radius;
-        radiusVal.textContent = radius;
-        strokeInput.value = stroke;
-        strokeVal.textContent = stroke;
+        const d = NODE_DEFAULTS[id];
+        colorInput.value = n.color ?? d.color;
+        radiusInput.value = n.radius ?? d.radius;
+        radiusVal.textContent = n.radius ?? d.radius;
+        strokeInput.value = n.stroke_width ?? DEFAULT_STROKE;
+        strokeVal.textContent = n.stroke_width ?? DEFAULT_STROKE;
+        xInput.value = n.x ?? d.x;
+        xVal.textContent = n.x ?? d.x;
+        yInput.value = n.y ?? d.y;
+        yVal.textContent = n.y ?? d.y;
       }
       nodeSel.onchange = loadNodeControls;
       colorInput.oninput = () => {
@@ -451,6 +463,16 @@
       strokeInput.oninput = () => {
         config.nodes[nodeSel.value].stroke_width = Number(strokeInput.value);
         strokeVal.textContent = strokeInput.value;
+        applyConfig();
+      };
+      xInput.oninput = () => {
+        config.nodes[nodeSel.value].x = Number(xInput.value);
+        xVal.textContent = xInput.value;
+        applyConfig();
+      };
+      yInput.oninput = () => {
+        config.nodes[nodeSel.value].y = Number(yInput.value);
+        yVal.textContent = yInput.value;
         applyConfig();
       };
       loadNodeControls();

@@ -21,6 +21,8 @@ export interface PumpConfig {
 /** Backward-compatible alias for the top-level `solarpumpe:` block. */
 export type SolarpumpeConfig = PumpConfig;
 
+export type NodeKind = "circle" | "badge" | "gauge";
+
 export interface NodeConfig {
   /** Entity whose state is shown as the node's primary value. */
   primary?: string;
@@ -45,6 +47,16 @@ export interface NodeConfig {
   /** Ring outline thickness in SVG units. Overrides the role default. */
   stroke_width?: number;
 
+  // --- Placement & kind (fully custom / repositioned nodes) ------------------
+  /** Center X on the 0..400 canvas. Required for custom nodes without a role. */
+  x?: number;
+  /** Center Y on the 0..400 canvas. Required for custom nodes without a role. */
+  y?: number;
+  /** How the node is drawn: full circle, corner badge, or gauge badge. */
+  kind?: NodeKind;
+  /** Force-hide this node even if it has a primary entity. */
+  hidden?: boolean;
+
   // --- Buffer stratification (puffer node) -----------------------------------
   /**
    * Charge-% entity (0..100) that sets the stratified fill level. Falls back to
@@ -67,6 +79,10 @@ export interface NodeConfig {
 }
 
 export interface EdgeConfig {
+  /** Source node id. Overrides the built-in topology; required for custom edges. */
+  from?: string;
+  /** Target node id. Overrides the built-in topology; required for custom edges. */
+  to?: string;
   /** Drive mode. Defaults to "power" if an `entity` is numeric, else "state". */
   type?: EdgeType;
   /** Entity used for "power" (numeric) or "state" (on/off) modes. */
@@ -93,6 +109,12 @@ export interface EdgeConfig {
   pump?: PumpConfig;
 }
 
+/** A thin dashed, non-hydraulic link expressing a control relationship. */
+export interface ControlLinkConfig {
+  from: string;
+  to: string;
+}
+
 export interface EtaFlowCardConfig extends LovelaceCardConfig {
   type: string;
   title?: string;
@@ -102,6 +124,8 @@ export interface EtaFlowCardConfig extends LovelaceCardConfig {
   solarpumpe?: PumpConfig;
   /** Show driving-value labels on every edge (per-edge `show_label` overrides). */
   show_edge_labels?: boolean;
+  /** Override the default control links (e.g. Außen → Heizkreis). */
+  control_links?: ControlLinkConfig[];
 }
 
 /** Result of evaluating an edge against the current states. */

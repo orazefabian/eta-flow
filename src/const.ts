@@ -2,7 +2,10 @@ export const CARD_NAME = "eta-flow-card";
 export const CARD_EDITOR_NAME = "eta-flow-card-editor";
 export const CARD_VERSION = "0.1.0";
 
-/** A visual node role in the ETA heat-flow diagram. */
+/** How a node is drawn. */
+export type NodeKind = "circle" | "badge" | "gauge";
+
+/** A visual node role in the ETA heat-flow diagram (a set of defaults). */
 export interface RoleDef {
   id: string;
   /** Default human label (German, ETA terminology). */
@@ -11,11 +14,13 @@ export interface RoleDef {
   icon: string;
   /** Default accent color for the glowing ring. */
   color: string;
-  /** Position on the 400x400 SVG canvas (center of the node). */
+  /** Default position on the 400x400 SVG canvas (center of the node). */
   x: number;
   y: number;
   /** Default circle radius in SVG units on the 400x400 canvas. */
   radius: number;
+  /** Default render kind. */
+  kind: NodeKind;
 }
 
 /** Default ring outline thickness (SVG units) when a node doesn't override it. */
@@ -42,6 +47,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 200,
     y: 200,
     radius: 42,
+    kind: "circle",
   },
   solar: {
     id: "solar",
@@ -51,6 +57,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 200,
     y: 56,
     radius: 34,
+    kind: "circle",
   },
   kessel: {
     id: "kessel",
@@ -60,6 +67,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 200,
     y: 344,
     radius: 34,
+    kind: "circle",
   },
   warmwasser: {
     id: "warmwasser",
@@ -69,6 +77,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 56,
     y: 200,
     radius: 34,
+    kind: "circle",
   },
   heizkreis: {
     id: "heizkreis",
@@ -78,6 +87,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 344,
     y: 200,
     radius: 34,
+    kind: "circle",
   },
   heizkreis2: {
     id: "heizkreis2",
@@ -87,6 +97,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 322,
     y: 322,
     radius: 30,
+    kind: "circle",
   },
   aussen: {
     id: "aussen",
@@ -96,6 +107,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 346,
     y: 54,
     radius: 24,
+    kind: "badge",
   },
   vorrat: {
     id: "vorrat",
@@ -105,6 +117,7 @@ export const ROLES: Record<string, RoleDef> = {
     x: 54,
     y: 346,
     radius: 24,
+    kind: "gauge",
   },
 };
 
@@ -115,16 +128,15 @@ export const PUMP_DEFAULTS = {
   radius: 15,
 };
 
-/** Roles rendered as full circular nodes. */
-export const CIRCLE_ROLES = ["solar", "kessel", "warmwasser", "heizkreis", "heizkreis2", PUFFER_ID];
+/** Fallback appearance for a custom node that has no role default. */
+export const NODE_FALLBACK = {
+  color: "#4caf50",
+  radius: 34,
+  icon: "mdi:circle-outline",
+  kind: "circle" as NodeKind,
+};
 
-/** Roles rendered as small corner badges (no edge). */
-export const BADGE_ROLES = ["aussen", "vorrat"];
-
-/** Badges that render a fill gauge under the value by default. */
-export const GAUGE_ROLES = ["vorrat"];
-
-/** An edge definition: which two roles it connects and its config key. */
+/** An edge definition: which two nodes it connects and its config key. */
 export interface EdgeDef {
   key: string;
   from: string;
@@ -132,8 +144,9 @@ export interface EdgeDef {
 }
 
 /**
- * Fixed edges. Dots travel from `from` -> `to` when the edge is active.
+ * Default edges. Dots travel from `from` -> `to` when the edge is active.
  * Solar/Kessel charge the Puffer; the Puffer feeds Warmwasser/Heizkreis(e).
+ * Each edge's `from`/`to` can be overridden in YAML, and new edges can be added.
  */
 export const EDGES: EdgeDef[] = [
   { key: "solar_to_puffer", from: "solar", to: "puffer" },
