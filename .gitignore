@@ -1,8 +1,10 @@
 # dependencies
 node_modules/
 
-# build output (produced by CI release workflow, attached to GitHub release)
-dist/
+# build output — the bundle is committed so HACS can load the plugin from the
+# repo (dist/<filename>); the release workflow also attaches a fresh copy.
+dist/*
+!dist/eta-flow-card.js
 
 # caches / logs
 *.log
