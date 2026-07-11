@@ -126,6 +126,11 @@ export interface EtaFlowCardConfig extends LovelaceCardConfig {
   show_edge_labels?: boolean;
   /** Override the default control links (e.g. Außen → Heizkreis). */
   control_links?: ControlLinkConfig[];
+  /**
+   * Fill color for all node/badge/pump circles (e.g. "#ffffff"). Defaults to the
+   * theme's secondary background (a grey shade).
+   */
+  node_background?: string;
 }
 
 /** Result of evaluating an edge against the current states. */

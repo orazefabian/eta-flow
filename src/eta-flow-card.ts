@@ -135,8 +135,12 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       if (spec) iconSpecs.push(spec);
     }
 
+    const cardStyle = this._config.node_background
+      ? `--eta-node-fill: ${this._config.node_background}`
+      : nothing;
+
     return html`
-      <ha-card>
+      <ha-card style=${cardStyle}>
         ${this._config.title ? html`<div class="title">${this._config.title}</div>` : nothing}
         <div class="flow-wrap">
           <svg class="flow" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">

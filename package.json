@@ -1,6 +1,6 @@
 {
   "name": "eta-flow-card",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Animated heat-flow Lovelace card for ETA pellet heating systems in Home Assistant",
   "type": "module",
   "main": "dist/eta-flow-card.js",
