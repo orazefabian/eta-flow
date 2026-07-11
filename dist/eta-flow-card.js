@@ -79,8 +79,10 @@ function t(t,e,i,s){var r,n=arguments.length,o=n<3?e:null===s?s=Object.getOwnPro
   .ring {
     fill: var(--eta-node-fill);
   }
+  /* dim only the outline for inactive nodes — the fill must stay opaque so the
+     edge line behind the node is never visible through it */
   .ring.inactive {
-    opacity: 0.55;
+    stroke-opacity: 0.5;
   }
   .ring.active {
     filter: drop-shadow(0 0 5px currentColor);
@@ -143,7 +145,7 @@ function t(t,e,i,s){var r,n=arguments.length,o=n<3?e:null===s?s=Object.getOwnPro
     stroke-width: 2;
   }
   .pump-ring.inactive {
-    opacity: 0.55;
+    stroke-opacity: 0.5;
   }
   .pump-ring.active {
     filter: drop-shadow(0 0 4px currentColor);
@@ -255,7 +257,7 @@ function t(t,e,i,s){var r,n=arguments.length,o=n<3?e:null===s?s=Object.getOwnPro
     .node-name {
       font-weight: 600;
     }
-  `,t([ft({attribute:!1})],It.prototype,"hass",void 0),t([_t()],It.prototype,"_config",void 0),It=t([dt("eta-flow-card-editor")],It),console.info("%c ETA-FLOW-CARD %c v0.1.4 ","color: #fff; background: #4caf50; font-weight: 700;","color: #4caf50; background: #1c1c1c;"),window.customCards=window.customCards||[],window.customCards.push({type:mt,name:"ETA Flow Card",description:"Animated heat-flow visualization for ETA heating systems (pellet, log & solar).",preview:!0,documentationURL:"https://github.com/orazefabian/eta-flow"});const Lt=(t,e,i)=>Math.max(e,Math.min(i,t));function jt(t,e,i,s,r=4){const n=e.x-t.x,o=e.y-t.y,a=Math.hypot(n,o)||1,c=n/a,l=o/a;return{x1:t.x+c*(i+r),y1:t.y+l*(i+r),x2:e.x-c*(s+r),y2:e.y-l*(s+r)}}let Dt=class extends lt{static async getConfigElement(){return document.createElement("eta-flow-card-editor")}static getStubConfig(){return{type:`custom:${mt}`,title:"Heizung",nodes:{puffer:{},solar:{},kessel:{},warmwasser:{},heizkreis:{},aussen:{}}}}setConfig(t){if(!t)throw new Error("Invalid configuration");this._config={nodes:{},edges:{},...t}}getCardSize(){return 6}render(){if(!this._config||!this.hass)return K;const t=this._nodeIds().filter(t=>this._nodeVisible(t)),e=this._resolvedEdges().filter(e=>t.includes(e.from)&&t.includes(e.to)),i=(this._config.control_links??Et).filter(e=>t.includes(e.from)&&t.includes(e.to)),s=[];for(const e of t){const t="circle"===this._nodeKind(e)?this._circleIconSpec(e):this._badgeIconSpec(e);t&&s.push(t)}for(const t of e){const e=this._pumpIconSpec(t);e&&s.push(e)}return F`
+  `,t([ft({attribute:!1})],It.prototype,"hass",void 0),t([_t()],It.prototype,"_config",void 0),It=t([dt("eta-flow-card-editor")],It),console.info("%c ETA-FLOW-CARD %c v0.2.3 ","color: #fff; background: #4caf50; font-weight: 700;","color: #4caf50; background: #1c1c1c;"),window.customCards=window.customCards||[],window.customCards.push({type:mt,name:"ETA Flow Card",description:"Animated heat-flow visualization for ETA heating systems (pellet, log & solar).",preview:!0,documentationURL:"https://github.com/orazefabian/eta-flow"});const Lt=(t,e,i)=>Math.max(e,Math.min(i,t));function jt(t,e,i,s,r=4){const n=e.x-t.x,o=e.y-t.y,a=Math.hypot(n,o)||1,c=n/a,l=o/a;return{x1:t.x+c*(i+r),y1:t.y+l*(i+r),x2:e.x-c*(s+r),y2:e.y-l*(s+r)}}let Dt=class extends lt{static async getConfigElement(){return document.createElement("eta-flow-card-editor")}static getStubConfig(){return{type:`custom:${mt}`,title:"Heizung",nodes:{puffer:{},solar:{},kessel:{},warmwasser:{},heizkreis:{},aussen:{}}}}setConfig(t){if(!t)throw new Error("Invalid configuration");this._config={nodes:{},edges:{},...t}}getCardSize(){return 6}render(){if(!this._config||!this.hass)return K;const t=this._nodeIds().filter(t=>this._nodeVisible(t)),e=this._resolvedEdges().filter(e=>t.includes(e.from)&&t.includes(e.to)),i=(this._config.control_links??Et).filter(e=>t.includes(e.from)&&t.includes(e.to)),s=[];for(const e of t){const t="circle"===this._nodeKind(e)?this._circleIconSpec(e):this._badgeIconSpec(e);t&&s.push(t)}for(const t of e){const e=this._pumpIconSpec(t);e&&s.push(e)}return F`
       <ha-card>
         ${this._config.title?F`<div class="title">${this._config.title}</div>`:K}
         <div class="flow-wrap">

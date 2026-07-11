@@ -81,8 +81,10 @@ export const styles = css`
   .ring {
     fill: var(--eta-node-fill);
   }
+  /* dim only the outline for inactive nodes — the fill must stay opaque so the
+     edge line behind the node is never visible through it */
   .ring.inactive {
-    opacity: 0.55;
+    stroke-opacity: 0.5;
   }
   .ring.active {
     filter: drop-shadow(0 0 5px currentColor);
@@ -145,7 +147,7 @@ export const styles = css`
     stroke-width: 2;
   }
   .pump-ring.inactive {
-    opacity: 0.55;
+    stroke-opacity: 0.5;
   }
   .pump-ring.active {
     filter: drop-shadow(0 0 4px currentColor);
