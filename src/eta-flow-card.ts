@@ -197,28 +197,24 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   }
 
   /**
-   * A centered ha-icon inside a foreignObject, with a little padding so glyphs that
-   * fill their 24x24 viewBox (e.g. mdi:pump) aren't clipped by the foreignObject.
+   * A centered ha-icon inside a foreignObject. The foreignObject is sized a touch
+   * larger than the glyph (so full-bleed icons like mdi:pump aren't clipped) and the
+   * ha-icon fills it in explicit pixels, centering the glyph itself.
+   *
+   * Everything is sized in absolute px — no `width:100%`/`overflow:visible`. On mobile
+   * WebKit a percentage-sized child of a foreignObject resolves against the SVG
+   * viewport (not the foreignObject), which balloons it and throws the icon off to the
+   * side of the node. Explicit px keeps the icon centered on every browser.
    */
   private _icon(icon: string, cx: number, cy: number, size: number, cls = "") {
     const box = size + 6;
     return svg`
-      <foreignObject
-        x=${cx - box / 2}
-        y=${cy - box / 2}
-        width=${box}
-        height=${box}
-        style="overflow:visible"
-      >
-        <div
+      <foreignObject x=${cx - box / 2} y=${cy - box / 2} width=${box} height=${box}>
+        <ha-icon
           class=${cls}
-          style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"
-        >
-          <ha-icon
-            icon=${icon}
-            style=${`color: var(--eta-text); --mdc-icon-size:${size}px; width:${size}px; height:${size}px;`}
-          ></ha-icon>
-        </div>
+          icon=${icon}
+          style=${`display:flex; align-items:center; justify-content:center; width:${box}px; height:${box}px; --mdc-icon-size:${size}px; color: var(--eta-text);`}
+        ></ha-icon>
       </foreignObject>
     `;
   }

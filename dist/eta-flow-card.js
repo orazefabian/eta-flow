@@ -230,7 +230,7 @@ function t(t,e,i,s){var r,n=arguments.length,o=n<3?e:null===s?s=Object.getOwnPro
     .node-name {
       font-weight: 600;
     }
-  `,t([ft({attribute:!1})],Ht.prototype,"hass",void 0),t([$t()],Ht.prototype,"_config",void 0),Ht=t([dt("eta-flow-card-editor")],Ht),console.info("%c ETA-FLOW-CARD %c v0.1.1 ","color: #fff; background: #4caf50; font-weight: 700;","color: #4caf50; background: #1c1c1c;"),window.customCards=window.customCards||[],window.customCards.push({type:_t,name:"ETA Flow Card",description:"Animated heat-flow visualization for ETA heating systems (pellet, log & solar).",preview:!0,documentationURL:"https://github.com/orazefabian/eta-flow"});const jt=(t,e,i)=>Math.max(e,Math.min(i,t));function Lt(t,e,i,s,r=4){const n=e.x-t.x,o=e.y-t.y,a=Math.hypot(n,o)||1,l=n/a,c=o/a;return{x1:t.x+l*(i+r),y1:t.y+c*(i+r),x2:e.x-l*(s+r),y2:e.y-c*(s+r)}}let It=class extends ct{static async getConfigElement(){return document.createElement("eta-flow-card-editor")}static getStubConfig(){return{type:`custom:${_t}`,title:"Heizung",nodes:{puffer:{},solar:{},kessel:{},warmwasser:{},heizkreis:{},aussen:{}}}}setConfig(t){if(!t)throw new Error("Invalid configuration");this._config={nodes:{},edges:{},...t}}getCardSize(){return 6}render(){if(!this._config||!this.hass)return K;const t=this._nodeIds().filter(t=>this._nodeVisible(t)),e=this._resolvedEdges().filter(e=>t.includes(e.from)&&t.includes(e.to)),i=(this._config.control_links??Et).filter(e=>t.includes(e.from)&&t.includes(e.to));return V`
+  `,t([ft({attribute:!1})],Ht.prototype,"hass",void 0),t([$t()],Ht.prototype,"_config",void 0),Ht=t([dt("eta-flow-card-editor")],Ht),console.info("%c ETA-FLOW-CARD %c v0.1.2 ","color: #fff; background: #4caf50; font-weight: 700;","color: #4caf50; background: #1c1c1c;"),window.customCards=window.customCards||[],window.customCards.push({type:_t,name:"ETA Flow Card",description:"Animated heat-flow visualization for ETA heating systems (pellet, log & solar).",preview:!0,documentationURL:"https://github.com/orazefabian/eta-flow"});const jt=(t,e,i)=>Math.max(e,Math.min(i,t));function Lt(t,e,i,s,r=4){const n=e.x-t.x,o=e.y-t.y,a=Math.hypot(n,o)||1,l=n/a,c=o/a;return{x1:t.x+l*(i+r),y1:t.y+c*(i+r),x2:e.x-l*(s+r),y2:e.y-c*(s+r)}}let It=class extends ct{static async getConfigElement(){return document.createElement("eta-flow-card-editor")}static getStubConfig(){return{type:`custom:${_t}`,title:"Heizung",nodes:{puffer:{},solar:{},kessel:{},warmwasser:{},heizkreis:{},aussen:{}}}}setConfig(t){if(!t)throw new Error("Invalid configuration");this._config={nodes:{},edges:{},...t}}getCardSize(){return 6}render(){if(!this._config||!this.hass)return K;const t=this._nodeIds().filter(t=>this._nodeVisible(t)),e=this._resolvedEdges().filter(e=>t.includes(e.from)&&t.includes(e.to)),i=(this._config.control_links??Et).filter(e=>t.includes(e.from)&&t.includes(e.to));return V`
       <ha-card>
         ${this._config.title?V`<div class="title">${this._config.title}</div>`:K}
         <svg class="flow" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
@@ -240,22 +240,12 @@ function t(t,e,i,s){var r,n=arguments.length,o=n<3?e:null===s?s=Object.getOwnPro
         </svg>
       </ha-card>
     `}_nodeIds(){const t=Object.keys(mt);for(const e of Object.keys(this._config.nodes??{}))t.includes(e)||t.push(e);return t}_cfg(t){return this._config.nodes?.[t]}_geom(t){const e=this._cfg(t),i=mt[t],s=e?.x??i?.x,r=e?.y??i?.y;if(void 0!==s&&void 0!==r)return{x:s,y:r}}_nodeKind(t){return this._cfg(t)?.kind??mt[t]?.kind??wt}_nodeColor(t){return this._cfg(t)?.color??mt[t]?.color??xt}_nodeRadius(t){return this._cfg(t)?.radius??mt[t]?.radius??bt}_nodeStroke(t){return this._cfg(t)?.stroke_width??2.5}_nodeIcon(t){return this._cfg(t)?.icon??mt[t]?.icon??At}_nodeLabel(t){return this._cfg(t)?.name??mt[t]?.label??t}_hasData(t){return!!(t?.primary||t?.level||t?.layers?.length)}_nodeEntity(t){const e=this._cfg(t);return e?.primary??e?.level??e?.state??e?.secondary??e?.layers?.[0]}_edgeEntity(t){const e=this._config.edges?.[t];return e?.entity??e?.label_entity??e?.from_entity}_openMoreInfo(t){t&&this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId:t},bubbles:!0,composed:!0}))}_icon(t,e,i,s,r=""){const n=s+6;return W`
-      <foreignObject
-        x=${e-n/2}
-        y=${i-n/2}
-        width=${n}
-        height=${n}
-        style="overflow:visible"
-      >
-        <div
+      <foreignObject x=${e-n/2} y=${i-n/2} width=${n} height=${n}>
+        <ha-icon
           class=${r}
-          style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"
-        >
-          <ha-icon
-            icon=${t}
-            style=${`color: var(--eta-text); --mdc-icon-size:${s}px; width:${s}px; height:${s}px;`}
-          ></ha-icon>
-        </div>
+          icon=${t}
+          style=${`display:flex; align-items:center; justify-content:center; width:${n}px; height:${n}px; --mdc-icon-size:${s}px; color: var(--eta-text);`}
+        ></ha-icon>
       </foreignObject>
     `}_nodeVisible(t){const e=this._cfg(t);return!e?.hidden&&(!!this._geom(t)&&(this._hasData(e)||"puffer"===t))}_resolvedEdges(){const t=new Map(kt.map(t=>[t.key,t])),e=new Set([...t.keys(),...Object.keys(this._config.edges??{})]),i=[];for(const s of e){const e=this._config.edges?.[s],r=t.get(s),n=e?.from??r?.from,o=e?.to??r?.to;n&&o&&i.push({key:s,from:n,to:o})}return i}_renderEdge(t){const e=this._geom(t.from),i=this._geom(t.to);if(!e||!i)return K;const{x1:s,y1:r,x2:n,y2:o}=Lt(e,i,this._nodeRadius(t.from),this._nodeRadius(t.to)),a=`edge-${t.key}`,l=`M ${s} ${r} L ${n} ${o}`,c=this._config.edges?.[t.key],h=Pt(c,this.hass),d=this._nodeColor(h.reverse?t.to:t.from),p=c?.show_label??this._config.show_edge_labels??!1?function(t,e){if(!t)return;if(t.label_entity)return Rt(e,t.label_entity);const i=Mt(t,e);if("power"===i)return Rt(e,t.entity);if("delta"===i){const i=Ct(e,t.from_entity),s=Ct(e,t.to_entity);if(void 0===i||void 0===s)return;return`Δ${Math.round(10*(i-s))/10}°`}}(c,this.hass):void 0;let u=K;if(p){const s=(e.x+i.x)/2,r=(e.y+i.y)/2,n=Math.hypot(i.x-e.x,i.y-e.y)||1,o=-(i.y-e.y)/n,a=(i.x-e.x)/n,l=this._edgePump(t.key)?22:11;u=W`<text class="edge-label" x=${s+o*l} y=${r+a*l}
         dominant-baseline="central">${p}</text>`}const f=this._edgeEntity(t.key);return W`

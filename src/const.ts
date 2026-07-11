@@ -1,6 +1,6 @@
 export const CARD_NAME = "eta-flow-card";
 export const CARD_EDITOR_NAME = "eta-flow-card-editor";
-export const CARD_VERSION = "0.1.1";
+export const CARD_VERSION = "0.1.2";
 
 /** How a node is drawn. */
 export type NodeKind = "circle" | "badge" | "gauge";
