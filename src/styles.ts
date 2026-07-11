@@ -155,16 +155,43 @@ export const styles = css`
     font-size: 11px;
     text-anchor: start;
   }
-  .pump {
-    transform-origin: center;
+
+  /*
+   * Shared icon layer: one foreignObject over the whole 0..400 viewBox. Each icon is
+   * absolutely placed in px (== user units here) and centered on its point. This is the
+   * mobile-safe way to put HTML icons in a scaled SVG (per-node foreignObjects
+   * mis-position on WebKit).
+   */
+  .icon-fo {
+    overflow: visible;
+    pointer-events: none;
   }
-  .pump.on {
-    animation: spin 1.6s linear infinite;
+  .icon-layer {
+    position: relative;
+    width: 400px;
+    height: 400px;
+    pointer-events: none;
+  }
+  .node-icon {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--eta-text);
+    pointer-events: none;
+  }
+  .node-icon.pump.on {
+    animation: spin-centered 1.6s linear infinite;
     filter: drop-shadow(0 0 3px currentColor);
   }
-  @keyframes spin {
+  /* keep the centering translate while rotating */
+  @keyframes spin-centered {
+    from {
+      transform: translate(-50%, -50%) rotate(0);
+    }
     to {
-      transform: rotate(360deg);
+      transform: translate(-50%, -50%) rotate(360deg);
     }
   }
 `;

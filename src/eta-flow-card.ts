@@ -59,6 +59,15 @@ interface ResolvedEdge {
   to: string;
 }
 
+/** A node/pump icon to draw in the shared icon layer (positions in 0..400 units). */
+interface IconSpec {
+  icon: string;
+  cx: number;
+  cy: number;
+  size: number;
+  cls: string;
+}
+
 /** Trim a line between two node centers so it starts/ends just outside each ring. */
 function trim(from: Point, to: Point, fromR: number, toR: number, gap = 4) {
   const dx = to.x - from.x;
@@ -113,6 +122,18 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       (l) => visible.includes(l.from) && visible.includes(l.to),
     );
 
+    // Icons live in a single, full-size foreignObject at the SVG origin (see
+    // _iconLayer), so they position reliably on mobile WebKit.
+    const iconSpecs: IconSpec[] = [];
+    for (const id of visible) {
+      const spec = this._nodeKind(id) === "circle" ? this._circleIconSpec(id) : this._badgeIconSpec(id);
+      if (spec) iconSpecs.push(spec);
+    }
+    for (const e of edges) {
+      const spec = this._pumpIconSpec(e);
+      if (spec) iconSpecs.push(spec);
+    }
+
     return html`
       <ha-card>
         ${this._config.title ? html`<div class="title">${this._config.title}</div>` : nothing}
@@ -120,6 +141,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           ${links.map((l) => this._renderControlLink(l.from, l.to))}
           ${edges.map((e) => this._renderEdge(e))} ${edges.map((e) => this._renderPump(e))}
           ${visible.map((id) => this._renderNode(id, edges))}
+          ${this._iconLayer(iconSpecs)}
         </svg>
       </ha-card>
     `;
@@ -197,26 +219,68 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   }
 
   /**
-   * A centered ha-icon inside a foreignObject. The foreignObject is sized a touch
-   * larger than the glyph (so full-bleed icons like mdi:pump aren't clipped) and the
-   * ha-icon fills it in explicit pixels, centering the glyph itself.
-   *
-   * Everything is sized in absolute px — no `width:100%`/`overflow:visible`. On mobile
-   * WebKit a percentage-sized child of a foreignObject resolves against the SVG
-   * viewport (not the foreignObject), which balloons it and throws the icon off to the
-   * side of the node. Explicit px keeps the icon centered on every browser.
+   * All icons are drawn in ONE foreignObject that covers the whole 0..400 viewBox,
+   * positioning each ha-icon with absolute CSS pixels (which equal user units inside
+   * the foreignObject and scale with the SVG). Many small, individually-placed
+   * foreignObjects mis-position on mobile WebKit under viewBox scaling — the icons end
+   * up offset to the side of their node, and the offset flips with orientation. A
+   * single origin foreignObject sidesteps that entirely.
    */
-  private _icon(icon: string, cx: number, cy: number, size: number, cls = "") {
-    const box = size + 6;
+  private _iconLayer(specs: IconSpec[]) {
+    if (!specs.length) return nothing;
     return svg`
-      <foreignObject x=${cx - box / 2} y=${cy - box / 2} width=${box} height=${box}>
-        <ha-icon
-          class=${cls}
-          icon=${icon}
-          style=${`display:flex; align-items:center; justify-content:center; width:${box}px; height:${box}px; --mdc-icon-size:${size}px; color: var(--eta-text);`}
-        ></ha-icon>
+      <foreignObject x="0" y="0" width="400" height="400" class="icon-fo">
+        <div class="icon-layer" xmlns="http://www.w3.org/1999/xhtml">
+          ${specs.map(
+            (s) => html`
+              <ha-icon
+                class=${`node-icon ${s.cls}`.trim()}
+                icon=${s.icon}
+                style=${`left:${s.cx}px;top:${s.cy}px;--mdc-icon-size:${s.size}px;`}
+              ></ha-icon>
+            `,
+          )}
+        </div>
       </foreignObject>
     `;
+  }
+
+  private _circleIconSpec(id: string): IconSpec | undefined {
+    const pos = this._geom(id);
+    if (!pos) return undefined;
+    const cfg = this._cfg(id);
+    const disp = computeNodeDisplay(cfg, this.hass);
+    const r = this._nodeRadius(id);
+    const hasState = !!disp.state;
+    const hasBelow = hasState || !!disp.secondary;
+    const size = clamp(Math.round(r * 0.62), 14, 40);
+    const cy = hasBelow ? pos.y - r * 0.42 : pos.y - r * 0.3;
+    return { icon: this._nodeIcon(id), cx: pos.x, cy, size, cls: "" };
+  }
+
+  private _badgeIconSpec(id: string): IconSpec | undefined {
+    const pos = this._geom(id);
+    if (!pos) return undefined;
+    const r = this._nodeRadius(id);
+    const size = clamp(Math.round(r * 0.66), 14, 28);
+    return { icon: this._nodeIcon(id), cx: pos.x, cy: pos.y - r * 0.44, size, cls: "" };
+  }
+
+  private _pumpIconSpec(edge: ResolvedEdge): IconSpec | undefined {
+    const cfg = this._edgePump(edge.key);
+    if (!cfg?.entity) return undefined;
+    const from = this._geom(edge.from);
+    const to = this._geom(edge.to);
+    if (!from || !to) return undefined;
+    const on = isActive(this.hass, cfg.entity, cfg.active_states);
+    const size = Math.round(PUMP_DEFAULTS.radius * 0.95);
+    return {
+      icon: cfg.icon ?? PUMP_DEFAULTS.icon,
+      cx: (from.x + to.x) / 2,
+      cy: (from.y + to.y) / 2,
+      size,
+      cls: `pump ${on ? "on" : ""}`.trim(),
+    };
   }
 
   /** A node renders when it is placeable, not hidden, and has data (Puffer always). */
@@ -346,7 +410,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const on = isActive(this.hass, cfg.entity, cfg.active_states);
     const color = cfg.color ?? this._nodeColor(edge.from);
     const r = PUMP_DEFAULTS.radius;
-    const iconSize = Math.round(r * 0.95);
     const label = cfg.name ?? PUMP_DEFAULTS.label;
 
     return svg`
@@ -358,7 +421,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           r=${r}
           stroke="currentColor"
         ></circle>
-        ${this._icon(cfg.icon ?? PUMP_DEFAULTS.icon, mx, my, iconSize, `pump ${on ? "on" : ""}`)}
         ${
           cfg.hide_label
             ? nothing
@@ -386,12 +448,10 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const hasSecondary = !hasState && !!disp.secondary;
     const hasBelow = hasState || hasSecondary;
 
-    const iconSize = clamp(Math.round(r * 0.62), 14, 40);
     const primaryFont = clamp(r * 0.36, 12, 22).toFixed(1);
     const secondaryFont = clamp(r * 0.28, 10, 16).toFixed(1);
     const labelFont = clamp(r * 0.3, 11, 16).toFixed(1);
 
-    const iconCY = hasBelow ? pos.y - r * 0.42 : pos.y - r * 0.3;
     const primaryCY = hasBelow ? pos.y + r * 0.04 : pos.y + r * 0.36;
     const belowCY = pos.y + r * 0.44;
     const labelY = pos.y + r + Number(labelFont) * 0.8 + 3;
@@ -413,7 +473,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke-width=${this._nodeStroke(id)}
         ></circle>
         ${hasStrat ? this._renderStratFill(id, pos, r, cfg, color) : nothing}
-        ${this._icon(this._nodeIcon(id), pos.x, iconCY, iconSize)}
         ${
           disp.primary
             ? svg`<text
@@ -520,7 +579,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const disp = computeNodeDisplay(cfg, this.hass);
     const color = this._nodeColor(id);
     const r = this._nodeRadius(id);
-    const iconSize = clamp(Math.round(r * 0.66), 14, 28);
     const isGauge = this._nodeKind(id) === "gauge" || cfg?.gauge === true;
     const frac = isGauge ? gaugeFraction(cfg, this.hass) : undefined;
     const valueCY = pos.y + r * 0.2;
@@ -540,7 +598,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke="currentColor"
           stroke-width=${this._nodeStroke(id)}
         ></circle>
-        ${this._icon(this._nodeIcon(id), pos.x, pos.y - r * 0.44, iconSize)}
         ${
           disp.primary
             ? svg`<text class="badge-text" x=${pos.x} y=${valueCY} dominant-baseline="central">${disp.primary}</text>`
