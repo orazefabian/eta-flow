@@ -122,11 +122,12 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       (l) => visible.includes(l.from) && visible.includes(l.to),
     );
 
-    // Icons live in a single, full-size foreignObject at the SVG origin (see
-    // _iconLayer), so they position reliably on mobile WebKit.
+    // Icons are drawn as an HTML overlay on top of the SVG (see _iconOverlay), so
+    // they position reliably on mobile WebKit.
     const iconSpecs: IconSpec[] = [];
     for (const id of visible) {
-      const spec = this._nodeKind(id) === "circle" ? this._circleIconSpec(id) : this._badgeIconSpec(id);
+      const spec =
+        this._nodeKind(id) === "circle" ? this._circleIconSpec(id) : this._badgeIconSpec(id);
       if (spec) iconSpecs.push(spec);
     }
     for (const e of edges) {
@@ -137,12 +138,14 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     return html`
       <ha-card>
         ${this._config.title ? html`<div class="title">${this._config.title}</div>` : nothing}
-        <svg class="flow" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
-          ${links.map((l) => this._renderControlLink(l.from, l.to))}
-          ${edges.map((e) => this._renderEdge(e))} ${edges.map((e) => this._renderPump(e))}
-          ${visible.map((id) => this._renderNode(id, edges))}
-          ${this._iconLayer(iconSpecs)}
-        </svg>
+        <div class="flow-wrap">
+          <svg class="flow" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+            ${links.map((l) => this._renderControlLink(l.from, l.to))}
+            ${edges.map((e) => this._renderEdge(e))} ${edges.map((e) => this._renderPump(e))}
+            ${visible.map((id) => this._renderNode(id, edges))}
+          </svg>
+          ${this._iconOverlay(iconSpecs)}
+        </div>
       </ha-card>
     `;
   }
@@ -219,29 +222,27 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   }
 
   /**
-   * All icons are drawn in ONE foreignObject that covers the whole 0..400 viewBox,
-   * positioning each ha-icon with absolute CSS pixels (which equal user units inside
-   * the foreignObject and scale with the SVG). Many small, individually-placed
-   * foreignObjects mis-position on mobile WebKit under viewBox scaling — the icons end
-   * up offset to the side of their node, and the offset flips with orientation. A
-   * single origin foreignObject sidesteps that entirely.
+   * Icons are an HTML overlay ON TOP of the SVG — never inside a `foreignObject`.
+   * WebKit (iOS) does not apply the SVG `viewBox` scale to foreignObject HTML content,
+   * so icons placed inside the SVG drift off their nodes (offset grows with position,
+   * flips with orientation). The overlay exactly covers the square SVG, and each icon
+   * is placed with percentages of that box (`cx/400`), so it scales correctly on every
+   * engine. Size uses `cqw` against the `.flow-wrap` container so glyphs scale too.
    */
-  private _iconLayer(specs: IconSpec[]) {
+  private _iconOverlay(specs: IconSpec[]) {
     if (!specs.length) return nothing;
-    return svg`
-      <foreignObject x="0" y="0" width="400" height="400" class="icon-fo">
-        <div class="icon-layer" xmlns="http://www.w3.org/1999/xhtml">
-          ${specs.map(
-            (s) => html`
-              <ha-icon
-                class=${`node-icon ${s.cls}`.trim()}
-                icon=${s.icon}
-                style=${`left:${s.cx}px;top:${s.cy}px;--mdc-icon-size:${s.size}px;`}
-              ></ha-icon>
-            `,
-          )}
-        </div>
-      </foreignObject>
+    return html`
+      <div class="icon-overlay">
+        ${specs.map(
+          (s) => html`
+            <ha-icon
+              class=${`node-icon ${s.cls}`.trim()}
+              icon=${s.icon}
+              style=${`left:${s.cx / 4}%;top:${s.cy / 4}%;--mdc-icon-size:${s.size / 4}cqw;`}
+            ></ha-icon>
+          `,
+        )}
+      </div>
     `;
   }
 

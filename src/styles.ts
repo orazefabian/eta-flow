@@ -157,19 +157,17 @@ export const styles = css`
   }
 
   /*
-   * Shared icon layer: one foreignObject over the whole 0..400 viewBox. Each icon is
-   * absolutely placed in px (== user units here) and centered on its point. This is the
-   * mobile-safe way to put HTML icons in a scaled SVG (per-node foreignObjects
-   * mis-position on WebKit).
+   * Icons are an HTML overlay on top of the SVG, positioned in % of the (square) flow
+   * area — never inside a foreignObject, which WebKit fails to scale with the viewBox.
+   * The wrapper is a query container so icon size can scale via cqw.
    */
-  .icon-fo {
-    overflow: visible;
-    pointer-events: none;
-  }
-  .icon-layer {
+  .flow-wrap {
     position: relative;
-    width: 400px;
-    height: 400px;
+    container-type: inline-size;
+  }
+  .icon-overlay {
+    position: absolute;
+    inset: 0;
     pointer-events: none;
   }
   .node-icon {
