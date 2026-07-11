@@ -1,16 +1,20 @@
 import { css } from "lit";
 
 export const styles = css`
+  /*
+   * Follow the active Home Assistant theme so the card blends with every other
+   * card in both light and dark themes. The hardcoded values are dark-theme
+   * fallbacks for when a theme variable is missing.
+   */
   :host {
-    --eta-bg: #1c1c1c;
-    --eta-line: #565656;
-    --eta-text: #e1e1e1;
-    --eta-text-dim: #9e9e9e;
-    --eta-node-fill: #2a2a2a;
+    --eta-line: var(--divider-color, #565656);
+    --eta-text: var(--primary-text-color, #e1e1e1);
+    --eta-text-dim: var(--secondary-text-color, #9e9e9e);
+    --eta-node-fill: var(--secondary-background-color, #2a2a2a);
   }
 
   ha-card {
-    background: var(--eta-bg);
+    /* inherit the standard themed card background instead of forcing dark */
     padding: 8px 8px 4px;
     overflow: hidden;
   }
@@ -25,6 +29,24 @@ export const styles = css`
     width: 100%;
     aspect-ratio: 1 / 1;
     display: block;
+  }
+
+  /* clickable nodes open the entity's more-info dialog */
+  .clickable {
+    cursor: pointer;
+  }
+  .clickable:hover .ring,
+  .clickable:hover .badge {
+    filter: brightness(1.12);
+  }
+
+  /* wide invisible hit target so a thin edge is easy to click */
+  .edge-hit {
+    stroke: transparent;
+    stroke-width: 18;
+    fill: none;
+    cursor: pointer;
+    pointer-events: stroke;
   }
 
   /* connecting lines */
@@ -134,7 +156,6 @@ export const styles = css`
     text-anchor: start;
   }
   .pump {
-    transform-box: fill-box;
     transform-origin: center;
   }
   .pump.on {

@@ -172,6 +172,57 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     return !!(cfg?.primary || cfg?.level || cfg?.layers?.length);
   }
 
+  /** The entity a node click opens (primary value, else the first available). */
+  private _nodeEntity(id: string): string | undefined {
+    const cfg = this._cfg(id);
+    return cfg?.primary ?? cfg?.level ?? cfg?.state ?? cfg?.secondary ?? cfg?.layers?.[0];
+  }
+
+  /** The entity an edge click opens (its driving entity). */
+  private _edgeEntity(key: string): string | undefined {
+    const cfg = this._config.edges?.[key];
+    return cfg?.entity ?? cfg?.label_entity ?? cfg?.from_entity;
+  }
+
+  /** Open Home Assistant's more-info dialog, like a standard card. */
+  private _openMoreInfo(entityId?: string): void {
+    if (!entityId) return;
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        detail: { entityId },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /**
+   * A centered ha-icon inside a foreignObject, with a little padding so glyphs that
+   * fill their 24x24 viewBox (e.g. mdi:pump) aren't clipped by the foreignObject.
+   */
+  private _icon(icon: string, cx: number, cy: number, size: number, cls = "") {
+    const box = size + 6;
+    return svg`
+      <foreignObject
+        x=${cx - box / 2}
+        y=${cy - box / 2}
+        width=${box}
+        height=${box}
+        style="overflow:visible"
+      >
+        <div
+          class=${cls}
+          style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"
+        >
+          <ha-icon
+            icon=${icon}
+            style=${`color: var(--eta-text); --mdc-icon-size:${size}px; width:${size}px; height:${size}px;`}
+          ></ha-icon>
+        </div>
+      </foreignObject>
+    `;
+  }
+
   /** A node renders when it is placeable, not hidden, and has data (Puffer always). */
   private _nodeVisible(id: string): boolean {
     const cfg = this._cfg(id);
@@ -230,10 +281,17 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
         dominant-baseline="central">${label}</text>`;
     }
 
+    const entity = this._edgeEntity(edge.key);
+
     return svg`
       <path id=${pathId} class="edge-line" d=${d}></path>
       ${flow.active ? this._renderDots(pathId, flow.duration, flow.reverse, color) : nothing}
       ${labelEl}
+      ${
+        entity
+          ? svg`<path class="edge-hit" d=${d} @click=${() => this._openMoreInfo(entity)}></path>`
+          : nothing
+      }
     `;
   }
 
@@ -292,11 +350,11 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const on = isActive(this.hass, cfg.entity, cfg.active_states);
     const color = cfg.color ?? this._nodeColor(edge.from);
     const r = PUMP_DEFAULTS.radius;
-    const iconSize = Math.round(r * 1.15);
+    const iconSize = Math.round(r * 0.95);
     const label = cfg.name ?? PUMP_DEFAULTS.label;
 
     return svg`
-      <g style=${`color:${color}`}>
+      <g style=${`color:${color}`} class="clickable" @click=${() => this._openMoreInfo(cfg.entity)}>
         <circle
           class=${`pump-ring ${on ? "active" : "inactive"}`}
           cx=${mx}
@@ -304,18 +362,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           r=${r}
           stroke="currentColor"
         ></circle>
-        <foreignObject
-          x=${mx - iconSize / 2}
-          y=${my - iconSize / 2}
-          width=${iconSize}
-          height=${iconSize}
-          class=${`pump ${on ? "on" : ""}`}
-        >
-          <ha-icon
-            icon=${cfg.icon ?? PUMP_DEFAULTS.icon}
-            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
-          ></ha-icon>
-        </foreignObject>
+        ${this._icon(cfg.icon ?? PUMP_DEFAULTS.icon, mx, my, iconSize, `pump ${on ? "on" : ""}`)}
         ${
           cfg.hide_label
             ? nothing
@@ -353,9 +400,14 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const belowCY = pos.y + r * 0.44;
     const labelY = pos.y + r + Number(labelFont) * 0.8 + 3;
     const hasStrat = !!(cfg?.level || cfg?.layers?.length);
+    const entity = this._nodeEntity(id);
 
     return svg`
-      <g style=${`color:${color}`}>
+      <g
+        style=${`color:${color}`}
+        class=${entity ? "clickable" : ""}
+        @click=${() => this._openMoreInfo(entity)}
+      >
         <circle
           class=${`ring ${active ? "active" : "inactive"}`}
           cx=${pos.x}
@@ -365,17 +417,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke-width=${this._nodeStroke(id)}
         ></circle>
         ${hasStrat ? this._renderStratFill(id, pos, r, cfg, color) : nothing}
-        <foreignObject
-          x=${pos.x - iconSize / 2}
-          y=${iconCY - iconSize / 2}
-          width=${iconSize}
-          height=${iconSize}
-        >
-          <ha-icon
-            icon=${this._nodeIcon(id)}
-            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
-          ></ha-icon>
-        </foreignObject>
+        ${this._icon(this._nodeIcon(id), pos.x, iconCY, iconSize)}
         ${
           disp.primary
             ? svg`<text
@@ -482,13 +524,18 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const disp = computeNodeDisplay(cfg, this.hass);
     const color = this._nodeColor(id);
     const r = this._nodeRadius(id);
-    const iconSize = clamp(Math.round(r * 0.52), 12, 26);
+    const iconSize = clamp(Math.round(r * 0.66), 14, 28);
     const isGauge = this._nodeKind(id) === "gauge" || cfg?.gauge === true;
     const frac = isGauge ? gaugeFraction(cfg, this.hass) : undefined;
     const valueCY = pos.y + r * 0.2;
+    const entity = this._nodeEntity(id);
 
     return svg`
-      <g style=${`color:${color}`}>
+      <g
+        style=${`color:${color}`}
+        class=${entity ? "clickable" : ""}
+        @click=${() => this._openMoreInfo(entity)}
+      >
         <circle
           class="badge"
           cx=${pos.x}
@@ -497,17 +544,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke="currentColor"
           stroke-width=${this._nodeStroke(id)}
         ></circle>
-        <foreignObject
-          x=${pos.x - iconSize / 2}
-          y=${pos.y - r * 0.42 - iconSize / 2}
-          width=${iconSize}
-          height=${iconSize}
-        >
-          <ha-icon
-            icon=${this._nodeIcon(id)}
-            style=${`color: var(--eta-text); --mdc-icon-size: ${iconSize}px; width:${iconSize}px; height:${iconSize}px;`}
-          ></ha-icon>
-        </foreignObject>
+        ${this._icon(this._nodeIcon(id), pos.x, pos.y - r * 0.44, iconSize)}
         ${
           disp.primary
             ? svg`<text class="badge-text" x=${pos.x} y=${valueCY} dominant-baseline="central">${disp.primary}</text>`
