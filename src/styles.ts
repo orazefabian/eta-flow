@@ -5,12 +5,21 @@ export const styles = css`
    * Follow the active Home Assistant theme so the card blends with every other
    * card in both light and dark themes. The hardcoded values are dark-theme
    * fallbacks for when a theme variable is missing.
+   *
+   * The node fill is derived from the card background (nudged toward the text
+   * color for a subtle raised look) rather than from --secondary-background-color,
+   * which some themes leave light even in dark mode — leaving nodes glaringly
+   * white at night. Deriving from the card background always tracks light/dark.
    */
   :host {
     --eta-line: var(--divider-color, #565656);
     --eta-text: var(--primary-text-color, #e1e1e1);
     --eta-text-dim: var(--secondary-text-color, #9e9e9e);
-    --eta-node-fill: var(--secondary-background-color, #2a2a2a);
+    --eta-node-fill: color-mix(
+      in srgb,
+      var(--card-background-color, #1c1c1c),
+      var(--primary-text-color, #e1e1e1) 12%
+    );
   }
 
   ha-card {
