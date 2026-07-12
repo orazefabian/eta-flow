@@ -15,9 +15,13 @@ export const styles = css`
     --eta-line: var(--divider-color, #565656);
     --eta-text: var(--primary-text-color, #e1e1e1);
     --eta-text-dim: var(--secondary-text-color, #9e9e9e);
+    /* Fallback for WebKit < 16.2 (no color-mix): the plain card background,
+       which is still dark in dark themes. The color-mix line below overrides
+       it wherever supported to give nodes a subtle raised tint. */
+    --eta-node-fill: var(--ha-card-background, var(--card-background-color, #1c1c1c));
     --eta-node-fill: color-mix(
       in srgb,
-      var(--card-background-color, #1c1c1c),
+      var(--ha-card-background, var(--card-background-color, #1c1c1c)),
       var(--primary-text-color, #e1e1e1) 12%
     );
   }
