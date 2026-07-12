@@ -6,20 +6,22 @@ export const styles = css`
    * card in both light and dark themes. The hardcoded values are dark-theme
    * fallbacks for when a theme variable is missing.
    *
-   * The node fill is derived from the card background (nudged toward the text
-   * color for a subtle raised look) rather than from --secondary-background-color,
-   * which some themes leave light even in dark mode — leaving nodes glaringly
-   * white at night. Deriving from the card background always tracks light/dark.
+   * Nodes fill with the plain card background (white in light themes, dark at
+   * night) — derived from the same variable chain ha-card uses, rather than
+   * --secondary-background-color, which some themes leave light even in dark
+   * mode. On hover the fill shifts to a subtle grey tint (see .ring:hover) for
+   * feedback.
    */
   :host {
     --eta-line: var(--divider-color, #565656);
     --eta-text: var(--primary-text-color, #e1e1e1);
     --eta-text-dim: var(--secondary-text-color, #9e9e9e);
-    /* Fallback for WebKit < 16.2 (no color-mix): the plain card background,
-       which is still dark in dark themes. The color-mix line below overrides
-       it wherever supported to give nodes a subtle raised tint. */
     --eta-node-fill: var(--ha-card-background, var(--card-background-color, #1c1c1c));
-    --eta-node-fill: color-mix(
+    /* Hover tint: card background nudged toward the text color. Fallback for
+       WebKit < 16.2 (no color-mix) is --secondary-background-color, still a
+       greyish surface; the color-mix line overrides it where supported. */
+    --eta-node-fill-hover: var(--secondary-background-color, #444);
+    --eta-node-fill-hover: color-mix(
       in srgb,
       var(--ha-card-background, var(--card-background-color, #1c1c1c)),
       var(--primary-text-color, #e1e1e1) 12%
@@ -50,7 +52,7 @@ export const styles = css`
   }
   .clickable:hover .ring,
   .clickable:hover .badge {
-    filter: brightness(1.12);
+    fill: var(--eta-node-fill-hover);
   }
 
   /* wide invisible hit target so a thin edge is easy to click */
