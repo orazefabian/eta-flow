@@ -25,6 +25,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Guards against tagging a release without bumping package.json, which would
+      # ship a bundle whose console banner reports a stale version.
+      - name: Check tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p 'require("./package.json").version')"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Tag v$tag does not match package.json version $pkg. Bump package.json and re-tag."
+            exit 1
+          fi
+          echo "Tag v$tag matches package.json version $pkg."
+
       - name: Build
         run: npm run build
 

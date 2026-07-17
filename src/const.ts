@@ -1,6 +1,10 @@
+import { version } from "../package.json";
+
 export const CARD_NAME = "eta-flow-card";
 export const CARD_EDITOR_NAME = "eta-flow-card-editor";
-export const CARD_VERSION = "0.2.4";
+/* Single source of truth: bump the version in package.json only. The release
+   workflow refuses to publish if the git tag disagrees with it. */
+export const CARD_VERSION: string = version;
 
 /** How a node is drawn. */
 export type NodeKind = "circle" | "badge" | "gauge";
