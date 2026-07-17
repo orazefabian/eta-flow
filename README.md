@@ -11,9 +11,18 @@ heating circuits.
 
 Inspired by the look of [`power-flow-card-plus`][pfcp], but for heat instead of electricity.
 
-<p align="center">
-  <img src="docs/screenshot.png" alt="ETA Flow Card" width="440">
-</p>
+The card follows your active Home Assistant theme:
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshot-light.png" alt="ETA Flow Card in a light Home Assistant theme" width="420"></td>
+    <td align="center"><img src="docs/screenshot-dark.png" alt="ETA Flow Card in a dark Home Assistant theme" width="420"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Light theme</sub></td>
+    <td align="center"><sub>Dark theme</sub></td>
+  </tr>
+</table>
 
 ## ⚠️ Prerequisite: the ETA sensor integration
 
