@@ -158,6 +158,58 @@ export function tempColor(t: number): string {
   return `hsl(${hue}, 72%, 50%)`;
 }
 
+/** Text colors used on top of a filled shape, where the theme colors can't be read. */
+export const ON_FILL_LIGHT = "#ffffff";
+export const ON_FILL_DARK = "#101418";
+
+/** sRGB channels (0..1) of a color the card itself produced: hsl() or #hex. */
+function channels(color: string): [number, number, number] | undefined {
+  const hsl = /^hsl\(\s*([\d.-]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)$/i.exec(color.trim());
+  if (hsl) {
+    const h = ((Number(hsl[1]) % 360) + 360) % 360;
+    const s = Number(hsl[2]) / 100;
+    const l = Number(hsl[3]) / 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    const [r, g, b] = (
+      [
+        [c, x, 0],
+        [x, c, 0],
+        [0, c, x],
+        [0, x, c],
+        [x, 0, c],
+        [c, 0, x],
+      ] as [number, number, number][]
+    )[Math.floor(h / 60) % 6];
+    return [r + m, g + m, b + m];
+  }
+
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const digits =
+      hex[1].length === 3
+        ? [...hex[1]].map((d) => d + d)
+        : [hex[1].slice(0, 2), hex[1].slice(2, 4), hex[1].slice(4, 6)];
+    return digits.map((d) => parseInt(d, 16) / 255) as [number, number, number];
+  }
+
+  return undefined;
+}
+
+/**
+ * Pick white or near-black text for a known background, by WCAG relative luminance.
+ * Used for values that sit on the stratified buffer fill, where neither theme text
+ * color is guaranteed to be legible (the fill runs from blue through green to red).
+ */
+export function contrastText(background: string): string {
+  const rgb = channels(background);
+  if (!rgb) return ON_FILL_LIGHT;
+  const [r, g, b] = rgb.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.42 ? ON_FILL_DARK : ON_FILL_LIGHT;
+}
+
 /** Unit of measurement of an entity, if it has one. */
 function unitOf(hass: HomeAssistant, entity?: string): string | undefined {
   if (!entity) return undefined;

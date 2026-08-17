@@ -27,6 +27,7 @@ import type { ActionsConfig, EtaFlowCardConfig, NodeConfig, PumpConfig } from ".
 import {
   computeEdgeFlow,
   computeNodeDisplay,
+  contrastText,
   edgeValueLabel,
   gaugeFraction,
   isActive,
@@ -968,16 +969,37 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke-width=${this._nodeStroke(id)}
         ></circle>
         ${hasStrat ? this._renderStratFill(id, pos, r, cfg, color) : nothing}
-        ${primary ? this._renderText("node-primary", pos.x, primaryCY, primary) : nothing}
+        ${
+          primary
+            ? this._renderText(
+                "node-primary",
+                pos.x,
+                primaryCY,
+                primary,
+                this._valueColor(id, pos, r, cfg, primaryCY, color),
+              )
+            : nothing
+        }
         ${hasState ? this._renderPill(pos.x, belowCY, r, disp.state as string) : nothing}
-        ${secondary ? this._renderText("node-secondary", pos.x, belowCY, secondary) : nothing}
+        ${
+          secondary
+            ? this._renderText(
+                "node-secondary",
+                pos.x,
+                belowCY,
+                secondary,
+                this._valueColor(id, pos, r, cfg, belowCY, color),
+              )
+            : nothing
+        }
         ${this._renderNodeLabel(id, pos, r)}
       </g>
     `;
   }
 
-  /** A centered, pre-fitted text run. */
-  private _renderText(cls: string, x: number, y: number, t: FittedText) {
+  /** A centered, pre-fitted text run, optionally forced to a specific fill color. */
+  private _renderText(cls: string, x: number, y: number, t: FittedText, fill?: string) {
+    const style = `font-size:${t.fontSize.toFixed(1)}px${fill ? `;fill:${fill}` : ""}`;
     return svg`<text
       class=${cls}
       x=${x}
@@ -985,8 +1007,60 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       dominant-baseline="central"
       textLength=${ifDefined(t.textLength)}
       lengthAdjust="spacingAndGlyphs"
-      style=${`font-size:${t.fontSize.toFixed(1)}px`}
+      style=${style}
     >${t.text}</text>`;
+  }
+
+  /** Geometry and layer temperatures of a node's stratified fill, when it has one. */
+  private _strat(
+    id: string,
+    pos: Point,
+    r: number,
+    cfg: NodeConfig | undefined,
+  ): { top: number; bottom: number; rC: number; layers: number[] } | undefined {
+    // Only nodes that opted into stratification: levelFraction falls back to a numeric
+    // `primary`, which would otherwise give every node an invisible "fill".
+    if (!cfg?.level && !cfg?.layers?.length) return undefined;
+    const frac = levelFraction(cfg, this.hass);
+    if (frac === undefined || frac <= 0) return undefined;
+    const rC = Math.max(0, r - this._nodeStroke(id) - 0.5);
+    const bottom = pos.y + rC;
+    return {
+      top: bottom - 2 * rC * frac,
+      bottom,
+      rC,
+      layers: (cfg?.layers ?? [])
+        .map((e) => numState(this.hass, e))
+        .filter((n): n is number => n !== undefined),
+    };
+  }
+
+  /**
+   * Text color for a value drawn inside a node.
+   *
+   * Values that land on the buffer fill can't use the theme's text colors — the fill
+   * runs from blue through green to red, so one end or the other is always unreadable.
+   * Where the text sits on the fill, the color under it is reconstructed (the gradient
+   * is interpolated at that height) and white or near-black is picked against it.
+   */
+  private _valueColor(
+    id: string,
+    pos: Point,
+    r: number,
+    cfg: NodeConfig | undefined,
+    y: number,
+    fallbackColor: string,
+  ): string | undefined {
+    const strat = this._strat(id, pos, r, cfg);
+    if (!strat || y < strat.top || y > strat.bottom) return undefined; // plain background
+    const { layers } = strat;
+    if (layers.length === 0) return contrastText(fallbackColor);
+    if (layers.length === 1) return contrastText(tempColor(layers[0]));
+    // Gradient stops are spread evenly over the filled rect, top to bottom.
+    const t = clamp((y - strat.top) / (strat.bottom - strat.top), 0, 1) * (layers.length - 1);
+    const i = Math.min(Math.floor(t), layers.length - 2);
+    const temp = layers[i] + (layers[i + 1] - layers[i]) * (t - i);
+    return contrastText(tempColor(temp));
   }
 
   /** Stratified fill: level = charge %, colored warm-top / cool-bottom by `layers`. */
@@ -997,17 +1071,12 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     cfg: NodeConfig | undefined,
     color: string,
   ) {
-    const frac = levelFraction(cfg, this.hass);
-    if (frac === undefined || frac <= 0) return nothing;
-    const stroke = this._nodeStroke(id);
-    const rC = Math.max(0, r - stroke - 0.5);
-    const fillH = 2 * rC * frac;
+    const strat = this._strat(id, pos, r, cfg);
+    if (!strat) return nothing;
+    const { rC, layers, top } = strat;
+    const fillH = strat.bottom - top;
     const clipId = `${id}-clip`;
     const gradId = `${id}-grad`;
-
-    const layers = (cfg?.layers ?? [])
-      .map((e) => numState(this.hass, e))
-      .filter((n): n is number => n !== undefined);
 
     let paint: string;
     let defs: unknown = nothing;
@@ -1032,7 +1101,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       <rect
         class="strat-fill"
         x=${pos.x - rC}
-        y=${pos.y + rC - fillH}
+        y=${top}
         width=${2 * rC}
         height=${fillH}
         fill=${paint}

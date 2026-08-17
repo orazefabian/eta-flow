@@ -97,6 +97,42 @@ describe("rendering", () => {
     expect(card.shadowRoot?.querySelector(".hint")?.textContent).toMatch(/card editor/i);
   });
 
+  it("colors values against the buffer fill, but only where they sit on it", async () => {
+    const hass = makeHass({
+      "sensor.level": [95, "%"],
+      "sensor.cold": [22, "°C"],
+      "sensor.warm": [50, "°C"],
+    });
+    const fill = (card: EtaFlowCard) =>
+      (card.shadowRoot?.querySelector(".node-primary") as SVGElement | null)?.style.fill;
+
+    // A cold (blue) fill needs light text, a mid-ramp (green) fill needs dark text.
+    const cold = await mount(
+      {
+        nodes: {
+          puffer: { primary: "sensor.level", level: "sensor.level", layers: ["sensor.cold"] },
+        },
+      },
+      hass,
+    );
+    expect(fill(cold)).toBe("#ffffff");
+
+    const warm = await mount(
+      {
+        nodes: {
+          puffer: { primary: "sensor.level", level: "sensor.level", layers: ["sensor.warm"] },
+        },
+      },
+      hass,
+    );
+    expect(fill(warm)).toBe("#101418");
+
+    // No stratification configured: the theme's text color stays in charge, even
+    // though the value is a percentage that could be read as a fill level.
+    const plain = await mount({ nodes: { puffer: { primary: "sensor.level" } } }, hass);
+    expect(fill(plain)).toBeFalsy();
+  });
+
   it("renders a status pill and a node that only has one", async () => {
     const card = await mount(
       { nodes: { kessel: { state: "sensor.status" } } },

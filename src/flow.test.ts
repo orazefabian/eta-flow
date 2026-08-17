@@ -3,7 +3,10 @@ import type { HomeAssistant } from "custom-card-helpers";
 import {
   computeEdgeFlow,
   computeNodeDisplay,
+  contrastText,
   edgeValueLabel,
+  ON_FILL_DARK,
+  ON_FILL_LIGHT,
   formatState,
   gaugeFraction,
   isActive,
@@ -250,6 +253,31 @@ describe("tempColor", () => {
     expect(tempColor(80)).toBe("hsl(0, 72%, 50%)");
     expect(tempColor(-40)).toBe(tempColor(20));
     expect(tempColor(500)).toBe(tempColor(80));
+  });
+});
+
+describe("contrastText", () => {
+  it("puts dark text on the bright middle of the temperature ramp", () => {
+    for (const temp of [40, 50, 55]) {
+      expect(contrastText(tempColor(temp))).toBe(ON_FILL_DARK);
+    }
+  });
+
+  it("puts light text on the cold and hot ends", () => {
+    expect(contrastText(tempColor(20))).toBe(ON_FILL_LIGHT);
+    expect(contrastText(tempColor(80))).toBe(ON_FILL_LIGHT);
+  });
+
+  it("reads hex colors too, in both notations", () => {
+    expect(contrastText("#ffffff")).toBe(ON_FILL_DARK);
+    expect(contrastText("#fff")).toBe(ON_FILL_DARK);
+    expect(contrastText("#000")).toBe(ON_FILL_LIGHT);
+    expect(contrastText("#4caf50")).toBe(ON_FILL_LIGHT);
+  });
+
+  it("falls back to light text for colors it cannot parse", () => {
+    expect(contrastText("var(--something)")).toBe(ON_FILL_LIGHT);
+    expect(contrastText("rebeccapurple")).toBe(ON_FILL_LIGHT);
   });
 });
 

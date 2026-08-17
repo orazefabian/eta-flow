@@ -107,14 +107,11 @@ export const styles = css`
   }
 
   /*
-   * Text that can end up over the stratified buffer fill or across a connecting
-   * line gets a halo in the node fill color, so it stays readable in both themes.
-   * paint-order keeps the stroke behind the glyphs instead of fattening them.
+   * Labels float free between the nodes and can cross a connecting line, so they
+   * get a halo in the card background color. Values inside a circle deliberately
+   * do not — the ring already separates them from everything behind.
    */
-  .node-primary,
-  .node-secondary,
-  .edge-label,
-  .badge-text {
+  .edge-label {
     paint-order: stroke;
     stroke: var(--eta-node-fill);
     stroke-width: 3px;
