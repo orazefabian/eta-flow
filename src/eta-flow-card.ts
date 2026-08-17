@@ -34,6 +34,7 @@ import {
   levelFraction,
   NO_VALUE,
   numState,
+  stateEntity,
   tempColor,
 } from "./flow";
 import { styles } from "./styles";
@@ -170,6 +171,9 @@ function validateConfig(config: EtaFlowCardConfig): void {
     if (node.min !== undefined && node.max !== undefined && node.max <= node.min) {
       throw new Error(`eta-flow-card: node "${id}" needs max greater than min.`);
     }
+    if (node.state && typeof node.state !== "string" && !node.state.entity) {
+      throw new Error(`eta-flow-card: node "${id}" has a state block without an entity.`);
+    }
   }
 
   for (const [key, edge] of Object.entries(config.edges ?? {})) {
@@ -228,7 +232,7 @@ function collectEntityIds(config: EtaFlowCardConfig): string[] {
     if (!node) continue;
     add(node.primary);
     add(node.secondary);
-    add(node.state);
+    add(stateEntity(node.state));
     add(node.level);
     for (const layer of node.layers ?? []) add(layer);
   }
@@ -661,13 +665,16 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   }
 
   private _hasData(cfg: NodeConfig | undefined): boolean {
-    return !!(cfg?.primary || cfg?.secondary || cfg?.state || cfg?.level || cfg?.layers?.length);
+    const state = stateEntity(cfg?.state);
+    return !!(cfg?.primary || cfg?.secondary || state || cfg?.level || cfg?.layers?.length);
   }
 
   /** The entity a node click opens (primary value, else the first available). */
   private _nodeEntity(id: string): string | undefined {
     const cfg = this._cfg(id);
-    return cfg?.primary ?? cfg?.level ?? cfg?.state ?? cfg?.secondary ?? cfg?.layers?.[0];
+    return (
+      cfg?.primary ?? cfg?.level ?? stateEntity(cfg?.state) ?? cfg?.secondary ?? cfg?.layers?.[0]
+    );
   }
 
   /** The entity an edge click opens (its driving entity). */
@@ -980,7 +987,11 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
               )
             : nothing
         }
-        ${hasState ? this._renderPill(pos.x, belowCY, r, disp.state as string) : nothing}
+        ${
+          hasState
+            ? this._renderPill(pos.x, belowCY, r, disp.state as string, disp.stateColor)
+            : nothing
+        }
         ${
           secondary
             ? this._renderText(
@@ -1110,15 +1121,27 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     `;
   }
 
-  /** A small rounded text pill (e.g. boiler state), never wider than the node. */
-  private _renderPill(cx: number, cy: number, r: number, text: string) {
+  /**
+   * A small rounded text pill (e.g. boiler state), never wider than the node.
+   * `color` tints the chip only — the text keeps the theme color, so the pill stays
+   * legible whatever color a `state.map` entry names.
+   */
+  private _renderPill(cx: number, cy: number, r: number, text: string, color?: string) {
     const maxTextWidth = 2 * r - 16;
     const fitted = this._fit(text, clamp(r * 0.26, 9, 13), maxTextWidth);
     const textWidth = fitted.textLength ?? fitted.text.length * fitted.fontSize * CHAR_EM;
     const w = Math.min(2 * r - 6, textWidth + 10);
     const h = fitted.fontSize + 6;
     return svg`
-      <rect class="pill-bg" x=${cx - w / 2} y=${cy - h / 2} width=${w} height=${h} rx=${h / 2}></rect>
+      <rect
+        class="pill-bg"
+        x=${cx - w / 2}
+        y=${cy - h / 2}
+        width=${w}
+        height=${h}
+        rx=${h / 2}
+        style=${color ? `fill:${color}` : nothing}
+      ></rect>
       ${this._renderText("pill-text", cx, cy, fitted)}
     `;
   }

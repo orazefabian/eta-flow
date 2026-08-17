@@ -55,7 +55,8 @@ Once that integration is set up and you have entities like `sensor.eta_puffer_..
 - Two context badges: **Außentemperatur** (top-right, linked to the heating circuit it
   weather-compensates) and **Pelletvorrat** (a fuel-stock gauge).
 - **Pump glyphs on any edge** that spin while their pump runs (Solar, Heizkreis, …).
-- Optional **boiler state pill** (Bereit / Heizen / Ausbrand) and **edge value labels**
+- Optional **status pills** (Bereit / Heizen / Ausbrand), with per-state text and color
+  mapping for long vendor wording, and **edge value labels**
   (flow temperature, ΔT, power) for at-a-glance feedback.
 - Animated flow dots on each connection; **speed and direction driven per edge** by a
   power sensor, a pump/on-off state, or a temperature difference.
@@ -173,7 +174,7 @@ always shows. Every node is fully customizable:
 | -------------- | ------------------------------------------------------------------------ |
 | `primary`      | entity shown as the big value (with its unit)                            |
 | `secondary`    | optional entity shown as a smaller value below                           |
-| `state`        | text/state entity rendered as a small pill (e.g. boiler `Heizen`)        |
+| `state`        | text/state entity rendered as a small pill (e.g. boiler `Heizen`); see below |
 | `name`         | override the label under the circle                                      |
 | `icon`         | override the mdi icon (shown above the value)                            |
 | `color`        | ring / flow accent color                                                 |
@@ -183,6 +184,31 @@ always shows. Every node is fully customizable:
 | `kind`         | `circle` (default), `badge`, or `gauge`                                  |
 | `hidden`       | force-hide a node even if it has data                                    |
 | `tap_action`, `hold_action`, `double_tap_action` | standard HA actions (default: more-info on the node's entity) |
+
+**Status pill** (`state`): the short form is just an entity id. ETA reports states like
+`Kollektortemperatur zu niedrig`, which is far too long to fit inside a node, so the long
+form adds a `map` that shortens and colors them:
+
+```yaml
+nodes:
+  solar:
+    primary: sensor.eta_solar_kollektor
+    state:
+      entity: sensor.eta_solar_zustand
+      map:
+        # A plain string just replaces the text …
+        "Kollektor lädt Speicher": lädt
+        # … an object also tints the pill.
+        "Kollektortemperatur zu niedrig": { text: zu kalt, color: "#78909c" }
+        "Störung": { color: "#f44336" } # keep the text, change the color only
+        "Deaktiviert": { text: "" } # hide the pill entirely for this state
+```
+
+Keys are matched case-insensitively against the entity's raw state (`on`, `0`, `Mitte`) or
+its formatted state (`Ein`), so both spellings work. States you don't list are shown as
+they are. Only the pill's tint changes — its text keeps the theme color, so any color you
+pick stays readable. The card editor shows the pill as a plain entity picker and preserves
+a `map` written in YAML.
 
 **Puffer stratification** (any node with `level`/`layers`): `level` sets the fill height
 (0..100 %, falls back to `primary`); `layers` is a top→bottom list of temperature entities

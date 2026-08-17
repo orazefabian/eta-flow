@@ -255,23 +255,61 @@ export function formatState(hass: HomeAssistant, entity?: string): string | unde
   return unit ? `${value} ${unit}` : value;
 }
 
+/** The entity behind a status pill, whether it is configured as a string or a block. */
+export function stateEntity(state: NodeConfig["state"]): string | undefined {
+  return typeof state === "string" ? state : state?.entity;
+}
+
+/**
+ * Apply a status pill's `map` to one state.
+ *
+ * Lookup is case-insensitive and tries the raw state first, then the formatted one, so
+ * a switch can be keyed as either `"on"` or `"Ein"`. An unlisted state keeps its
+ * formatted text; a mapped empty string hides the pill.
+ */
+function mapPillState(
+  state: NodeConfig["state"],
+  raw: string,
+  formatted: string,
+): { text?: string; color?: string } {
+  const map = typeof state === "string" ? undefined : state?.map;
+  if (!map) return { text: formatted };
+
+  const lookup = new Map(Object.entries(map).map(([key, value]) => [key.toLowerCase(), value]));
+  const hit = lookup.get(raw.toLowerCase()) ?? lookup.get(formatted.toLowerCase());
+  if (hit === undefined) return { text: formatted };
+  if (typeof hit === "string") return { text: hit };
+  return { text: hit.text ?? formatted, color: hit.color };
+}
+
 /**
  * Build the displayable primary/secondary/state strings for a node.
  *
  * `available` is false when the node has value entities configured but none of them
  * currently resolve — the renderer shows a placeholder and dims the ring for that case.
+ * It reflects the entities, not the pill's mapped text: a state mapped to "" hides the
+ * pill without making the node look dead.
  */
 export function computeNodeDisplay(node: NodeConfig | undefined, hass: HomeAssistant): NodeDisplay {
   if (!node) return { available: false };
-  const configured = !!(node.primary || node.secondary || node.state);
+  const stateId = stateEntity(node.state);
+  const configured = !!(node.primary || node.secondary || stateId);
   if (!configured) return { available: false };
+
   const primary = formatState(hass, node.primary);
   const secondary = formatState(hass, node.secondary);
-  const state = formatState(hass, node.state);
+  const rawState = hass.states[stateId as string]?.state;
+  const formattedState = formatState(hass, stateId);
+  const pill =
+    formattedState !== undefined && rawState !== undefined
+      ? mapPillState(node.state, rawState, formattedState)
+      : {};
+
   return {
     primary,
     secondary,
-    state,
-    available: primary !== undefined || secondary !== undefined || state !== undefined,
+    state: pill.text || undefined,
+    stateColor: pill.color,
+    available: primary !== undefined || secondary !== undefined || formattedState !== undefined,
   };
 }

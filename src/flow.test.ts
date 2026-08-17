@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HomeAssistant } from "custom-card-helpers";
+import type { NodeConfig } from "./types";
 import {
   computeEdgeFlow,
   computeNodeDisplay,
@@ -13,6 +14,7 @@ import {
   isUnavailable,
   levelFraction,
   numState,
+  stateEntity,
   tempColor,
 } from "./flow";
 
@@ -313,5 +315,80 @@ describe("computeNodeDisplay", () => {
     const display = computeNodeDisplay({ state: "sensor.status" }, hass);
     expect(display.state).toBe("Heizen");
     expect(display.available).toBe(true);
+  });
+
+  it("accepts a state block and reads its entity", () => {
+    const display = computeNodeDisplay({ state: { entity: "sensor.status" } }, hass);
+    expect(display.state).toBe("Heizen");
+    expect(display.available).toBe(true);
+    expect(computeNodeDisplay({ state: { map: { a: "b" } } }, hass).available).toBe(false);
+  });
+});
+
+describe("status pill state_map", () => {
+  // ETA's own wording is far too long for a node; `map` is what makes it fit.
+  const hass = makeHass({
+    "sensor.solar": ["Kollektortemperatur zu niedrig"],
+    "switch.pump": ["on"],
+    "sensor.numeric_bool": [0],
+  });
+
+  const pill = (state: NodeConfig["state"]) => computeNodeDisplay({ state }, hass);
+
+  it("replaces the text and tints the pill", () => {
+    const display = pill({
+      entity: "sensor.solar",
+      map: { "Kollektortemperatur zu niedrig": { text: "zu kalt", color: "#78909c" } },
+    });
+    expect(display.state).toBe("zu kalt");
+    expect(display.stateColor).toBe("#78909c");
+  });
+
+  it("takes a plain string as shorthand for the text", () => {
+    expect(
+      pill({ entity: "sensor.solar", map: { "Kollektortemperatur zu niedrig": "kalt" } }),
+    ).toMatchObject({ state: "kalt", stateColor: undefined });
+  });
+
+  it("matches case-insensitively and keys numeric on/off helpers", () => {
+    expect(pill({ entity: "switch.pump", map: { ON: "läuft" } }).state).toBe("läuft");
+    expect(pill({ entity: "sensor.numeric_bool", map: { "0": "Aus" } }).state).toBe("Aus");
+  });
+
+  it("matches the formatted state as well as the raw one", () => {
+    const german = makeHass({ "switch.pump": ["on"] }, {
+      formatEntityState: () => "Ein",
+    } as Partial<HomeAssistant>);
+    const display = computeNodeDisplay(
+      { state: { entity: "switch.pump", map: { Ein: "läuft" } } },
+      german,
+    );
+    expect(display.state).toBe("läuft");
+  });
+
+  it("leaves unlisted states alone", () => {
+    expect(pill({ entity: "switch.pump", map: { off: "aus" } }).state).toBe("on");
+  });
+
+  it("hides the pill for a state mapped to an empty string, without dimming the node", () => {
+    const display = pill({ entity: "switch.pump", map: { on: "" } });
+    expect(display.state).toBeUndefined();
+    expect(display.available).toBe(true);
+  });
+
+  it("keeps a color while leaving the text as it is", () => {
+    expect(pill({ entity: "switch.pump", map: { on: { color: "#f44336" } } })).toMatchObject({
+      state: "on",
+      stateColor: "#f44336",
+    });
+  });
+});
+
+describe("stateEntity", () => {
+  it("unwraps both config forms", () => {
+    expect(stateEntity("sensor.a")).toBe("sensor.a");
+    expect(stateEntity({ entity: "sensor.a", map: {} })).toBe("sensor.a");
+    expect(stateEntity(undefined)).toBeUndefined();
+    expect(stateEntity({})).toBeUndefined();
   });
 });

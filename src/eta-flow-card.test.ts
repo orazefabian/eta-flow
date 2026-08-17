@@ -51,6 +51,7 @@ describe("setConfig validation", () => {
     ["a custom edge without both ends", { edges: { extra: { from: "puffer" } } }],
     ["a gauge whose max is not above min", { nodes: { vorrat: { min: 10, max: 5 } } }],
     ["a control link to an unknown node", { control_links: [{ from: "puffer", to: "nope" }] }],
+    ["a state block with no entity", { nodes: { kessel: { state: { map: { on: "an" } } } } }],
   ];
 
   it.each(bad)("rejects %s", (_name, config) => {
@@ -139,6 +140,33 @@ describe("rendering", () => {
       makeHass({ "sensor.status": ["Heizen"] }),
     );
     expect(texts(card, ".pill-text")).toEqual(["Heizen"]);
+  });
+
+  it("shortens and tints a mapped pill state", async () => {
+    const card = await mount(
+      {
+        nodes: {
+          solar: {
+            state: {
+              entity: "sensor.zustand",
+              map: { "Kollektortemperatur zu niedrig": { text: "zu kalt", color: "#78909c" } },
+            },
+          },
+        },
+      },
+      makeHass({ "sensor.zustand": ["Kollektortemperatur zu niedrig"] }),
+    );
+    expect(texts(card, ".pill-text")).toEqual(["zu kalt"]);
+    expect((card.shadowRoot?.querySelector(".pill-bg") as SVGElement).style.fill).toBe("#78909c");
+  });
+
+  it("drops the pill entirely for a state mapped to an empty string", async () => {
+    const card = await mount(
+      { nodes: { kessel: { primary: "sensor.temp", state: { entity: "s.x", map: { off: "" } } } } },
+      makeHass({ "sensor.temp": [78, "°C"], "s.x": ["off"] }),
+    );
+    expect(card.shadowRoot?.querySelector(".pill-bg")).toBeNull();
+    expect(card.shadowRoot?.querySelector(".ring.unavailable")).toBeNull();
   });
 
   it("animates a connection only while it is flowing", async () => {

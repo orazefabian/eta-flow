@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { fireEvent, type HomeAssistant, type LovelaceCardEditor } from "custom-card-helpers";
 import { CARD_EDITOR_NAME, EDGES, ROLES } from "./const";
 import type { EdgeConfig, EtaFlowCardConfig, NodeConfig } from "./types";
+import { stateEntity } from "./flow";
 
 /** One entry of an `ha-form` schema (loosely typed — the shape is HA's, not ours). */
 type Schema = Record<string, unknown>;
@@ -77,6 +78,24 @@ const LABELS: Record<string, string> = {
   hide_label: "Hide the pump name",
 };
 
+/**
+ * The form shows a status pill as a plain entity picker, so a `state:` block is
+ * flattened to its entity for display and rebuilt around it on write — otherwise
+ * editing any field of a node would drop a `map` that only exists in YAML.
+ */
+function flattenNode(node: NodeConfig): NodeConfig {
+  return node.state && typeof node.state !== "string"
+    ? { ...node, state: stateEntity(node.state) }
+    : node;
+}
+
+function restoreState(previous: NodeConfig | undefined, entity: unknown): NodeConfig["state"] {
+  const block = previous?.state;
+  if (!block || typeof block === "string") return (entity as string) || undefined;
+  if (!entity) return undefined; // the picker was cleared: drop the pill and its map
+  return { ...block, entity: entity as string };
+}
+
 /** Drop empty strings and empty objects so the YAML stays clean. */
 function prune<T extends Record<string, unknown>>(value: T): T | undefined {
   const out: Record<string, unknown> = {};
@@ -116,6 +135,14 @@ export class EtaFlowCardEditor extends LitElement implements LovelaceCardEditor 
       if (!keys.includes(key)) keys.push(key);
     }
     return keys;
+  }
+
+  private _nodeData(): Record<string, NodeConfig> {
+    const data: Record<string, NodeConfig> = {};
+    for (const [id, node] of Object.entries(this._config.nodes ?? {})) {
+      if (node) data[id] = flattenNode(node);
+    }
+    return data;
   }
 
   private _nodeSchema(): Schema[] {
@@ -165,11 +192,12 @@ export class EtaFlowCardEditor extends LitElement implements LovelaceCardEditor 
         <h4>Nodes</h4>
         <p class="hint">
           A node is drawn once it has an entity. Leave one empty to hide it — the Puffer hub always
-          shows.
+          shows. Shortening or coloring the status pill's text (<code>state.map</code>) stays in
+          YAML and is kept when you edit a node here.
         </p>
         <ha-form
           .hass=${this.hass}
-          .data=${this._config.nodes ?? {}}
+          .data=${this._nodeData()}
           .schema=${this._nodeSchema()}
           .computeLabel=${this._label}
           @value-changed=${this._nodesChanged}
@@ -211,10 +239,16 @@ export class EtaFlowCardEditor extends LitElement implements LovelaceCardEditor 
     const value = ev.detail.value as Record<string, NodeConfig>;
     const nodes: Record<string, NodeConfig> = {};
     for (const [id, node] of Object.entries(value)) {
+      const previous = this._config.nodes?.[id];
       // Keep YAML-only keys (x/y, layers, radius, …) that the form doesn't show.
-      const merged = { ...this._config.nodes?.[id], ...node };
-      const pruned = prune(merged as Record<string, unknown>);
-      if (pruned) nodes[id] = pruned as NodeConfig;
+      const merged: Record<string, unknown> = { ...previous, ...node };
+      // Reattached after pruning: a map entry whose text is deliberately "" (hide the
+      // pill for this state) would otherwise be pruned away as an empty value.
+      const state = restoreState(previous, node.state);
+      delete merged.state;
+      const pruned = (prune(merged) ?? {}) as NodeConfig;
+      if (state) pruned.state = state;
+      if (Object.keys(pruned).length) nodes[id] = pruned;
     }
     this._emit({ ...this._config, nodes });
   }

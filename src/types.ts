@@ -34,6 +34,29 @@ export type SolarpumpeConfig = PumpConfig;
 
 export type NodeKind = "circle" | "badge" | "gauge";
 
+/** What a status pill shows for one particular state. */
+export interface StateMapEntry {
+  /** Text shown instead of the entity's own state. Empty string hides the pill. */
+  text?: string;
+  /** CSS color for the pill tint. Defaults to the node's accent color. */
+  color?: string;
+}
+
+/**
+ * Long form of a node's status pill. ETA reports states like "Kollektortemperatur zu
+ * niedrig", which cannot fit inside a node — `map` shortens and colors them.
+ */
+export interface NodeStateConfig {
+  /** Text/state entity behind the pill. */
+  entity?: string;
+  /**
+   * Keyed by the entity's raw state ("on", "0", "Mitte") or by its formatted state
+   * ("Ein"), matched case-insensitively. A plain string is shorthand for `{ text }`.
+   * Unlisted states are shown as they are.
+   */
+  map?: Record<string, string | StateMapEntry>;
+}
+
 export interface NodeConfig extends ActionsConfig {
   /** Entity whose state is shown as the node's primary value. */
   primary?: string;
@@ -42,8 +65,9 @@ export interface NodeConfig extends ActionsConfig {
   /**
    * Optional text/state entity rendered as a small pill (e.g. the boiler's
    * "Bereit"/"Heizen"/"Ausbrand" state). Takes the slot secondary would use.
+   * Either an entity id, or a block adding a `map` of per-state text and color.
    */
-  state?: string;
+  state?: string | NodeStateConfig;
   /** Override the default label. */
   name?: string;
   /** Override the default mdi icon. */
@@ -157,7 +181,9 @@ export interface EdgeFlow {
 export interface NodeDisplay {
   primary?: string;
   secondary?: string;
-  /** Text state for the pill (see NodeConfig.state). */
+  /** Text state for the pill (see NodeConfig.state), after any `map` is applied. */
   state?: string;
+  /** Pill tint from a matching `map` entry; the node's accent color when unset. */
+  stateColor?: string;
   available: boolean;
 }
