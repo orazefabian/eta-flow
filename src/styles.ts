@@ -40,6 +40,14 @@ export const styles = css`
     padding: 6px 8px 2px;
   }
 
+  /* shown instead of data when none of the configured entities exist yet */
+  .hint {
+    color: var(--eta-text-dim);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 0 8px 6px;
+  }
+
   .flow {
     width: 100%;
     aspect-ratio: 1 / 1;
@@ -92,6 +100,27 @@ export const styles = css`
     font-variant-numeric: tabular-nums;
   }
 
+  /* hover feedback for the (clickable) connections */
+  .edge-group:hover .edge-line {
+    stroke: var(--eta-text-dim);
+    stroke-width: 3;
+  }
+
+  /*
+   * Text that can end up over the stratified buffer fill or across a connecting
+   * line gets a halo in the node fill color, so it stays readable in both themes.
+   * paint-order keeps the stroke behind the glyphs instead of fattening them.
+   */
+  .node-primary,
+  .node-secondary,
+  .edge-label,
+  .badge-text {
+    paint-order: stroke;
+    stroke: var(--eta-node-fill);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+
   /* node circles (outline thickness set per-node via the stroke-width attribute) */
   .ring {
     fill: var(--eta-node-fill);
@@ -103,6 +132,13 @@ export const styles = css`
   }
   .ring.active {
     filter: drop-shadow(0 0 5px currentColor);
+  }
+  /* a node whose entities are unavailable/unknown: dashed, dimmed, no glow */
+  .ring.unavailable,
+  .badge.unavailable {
+    stroke-dasharray: 4 4;
+    stroke-opacity: 0.35;
+    filter: none;
   }
 
   /* stratified buffer fill */
@@ -170,7 +206,11 @@ export const styles = css`
   .pump-label {
     fill: var(--eta-text-dim);
     font-size: 11px;
-    text-anchor: start;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: var(--eta-node-fill);
+    stroke-width: 3px;
+    stroke-linejoin: round;
   }
 
   /*

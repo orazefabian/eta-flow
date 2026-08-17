@@ -1,6 +1,15 @@
-import { LitElement, html, svg, nothing, type TemplateResult } from "lit";
+import { LitElement, html, svg, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { HomeAssistant, LovelaceCard, LovelaceCardEditor } from "custom-card-helpers";
+import { ifDefined } from "lit/directives/if-defined.js";
+import {
+  handleAction,
+  hasAction,
+  type ActionConfig,
+  type HomeAssistant,
+  type LovelaceCard,
+  type LovelaceCardEditor,
+} from "custom-card-helpers";
+import { actionHandler } from "./action-handler";
 import {
   CARD_NAME,
   CARD_VERSION,
@@ -10,10 +19,11 @@ import {
   NODE_FALLBACK,
   PUFFER_ID,
   PUMP_DEFAULTS,
+  ROLE_ENTITY_HINTS,
   ROLES,
   type NodeKind,
 } from "./const";
-import type { EtaFlowCardConfig, NodeConfig, PumpConfig } from "./types";
+import type { ActionsConfig, EtaFlowCardConfig, NodeConfig, PumpConfig } from "./types";
 import {
   computeEdgeFlow,
   computeNodeDisplay,
@@ -21,6 +31,7 @@ import {
   gaugeFraction,
   isActive,
   levelFraction,
+  NO_VALUE,
   numState,
   tempColor,
 } from "./flow";
@@ -47,9 +58,59 @@ console.info(
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
+/**
+ * Text sizing. Font sizes live in SVG user units on the fixed 400x400 canvas, so they
+ * shrink with the card: on a 260px-wide phone column a 15-unit label renders at under
+ * 10 real pixels. MIN_TEXT_PX is the smallest size any label may end up at, converted
+ * to user units from the measured card width.
+ */
+const MIN_TEXT_PX = 9.5;
+/**
+ * Below this rendered width, drop the secondary detail (edge labels, secondary
+ * values, pump names) instead of squeezing it in: once every label is pinned at the
+ * readable floor they take up more of the canvas than the diagram itself.
+ */
+const NARROW_PX = 290;
+/** Rough advance width of one character, in em — good enough to fit text to a shape. */
+const CHAR_EM = 0.58;
+
 interface Point {
   x: number;
   y: number;
+}
+
+/** An axis-aligned box in canvas units, used for label collision avoidance. */
+interface Box {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** A text run that has been fitted to a maximum width. */
+interface FittedText {
+  text: string;
+  fontSize: number;
+  /** Set only when the glyphs still need squeezing after shrinking to the floor. */
+  textLength?: number;
+}
+
+/** Area shared by two boxes — 0 when they don't touch. */
+function overlapArea(a: Box, b: Box): number {
+  const w = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+  const h = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/** Total area a candidate label box shares with everything already placed. */
+function collisionCost(box: Box, obstacles: Box[]): number {
+  return obstacles.reduce((sum, o) => sum + overlapArea(box, o), 0);
+}
+
+function textBox(x: number, y: number, t: FittedText): Box {
+  const w = t.textLength ?? t.text.length * t.fontSize * CHAR_EM;
+  const h = t.fontSize * 1.25;
+  return { x1: x - w / 2, y1: y - h / 2, x2: x + w / 2, y2: y + h / 2 };
 }
 
 /** A fully-resolved edge (default topology merged with config overrides). */
@@ -59,6 +120,23 @@ interface ResolvedEdge {
   to: string;
 }
 
+/** A label that has been fitted and placed on the canvas. */
+interface PlacedLabel extends FittedText {
+  x: number;
+  y: number;
+}
+
+/** Labels placed for one render pass, keyed by edge. */
+interface PlacedLabels {
+  edges: Map<string, PlacedLabel>;
+  pumps: Map<string, PlacedLabel>;
+}
+
+/** The actions a single shape responds to, plus the entity they act on. */
+interface ResolvedActions extends ActionsConfig {
+  entity?: string;
+}
+
 /** A node/pump icon to draw in the shared icon layer (positions in 0..400 units). */
 interface IconSpec {
   icon: string;
@@ -66,6 +144,103 @@ interface IconSpec {
   cy: number;
   size: number;
   cls: string;
+}
+
+const EDGE_TYPES = ["power", "state", "delta"];
+const NODE_KINDS = ["circle", "badge", "gauge"];
+
+/**
+ * Reject configurations that could only render as a silently empty card, with a
+ * message naming the offending key. Unknown keys stay tolerated on purpose.
+ */
+function validateConfig(config: EtaFlowCardConfig): void {
+  const known = new Set([...Object.keys(ROLES), ...Object.keys(config.nodes ?? {})]);
+
+  for (const [id, node] of Object.entries(config.nodes ?? {})) {
+    if (!node) continue;
+    if (!ROLES[id] && (node.x === undefined || node.y === undefined)) {
+      throw new Error(`eta-flow-card: custom node "${id}" needs an x and y position (0..400).`);
+    }
+    if (node.kind && !NODE_KINDS.includes(node.kind)) {
+      throw new Error(
+        `eta-flow-card: node "${id}" has kind "${node.kind}" — expected ${NODE_KINDS.join(", ")}.`,
+      );
+    }
+    if (node.min !== undefined && node.max !== undefined && node.max <= node.min) {
+      throw new Error(`eta-flow-card: node "${id}" needs max greater than min.`);
+    }
+  }
+
+  for (const [key, edge] of Object.entries(config.edges ?? {})) {
+    if (!edge) continue;
+    if (edge.type && !EDGE_TYPES.includes(edge.type)) {
+      throw new Error(
+        `eta-flow-card: edge "${key}" has type "${edge.type}" — expected ${EDGE_TYPES.join(", ")}.`,
+      );
+    }
+    for (const end of ["from", "to"] as const) {
+      const id = edge[end];
+      if (id && !known.has(id)) {
+        throw new Error(`eta-flow-card: edge "${key}" points ${end} unknown node "${id}".`);
+      }
+    }
+    if (!EDGES.some((e) => e.key === key) && (!edge.from || !edge.to)) {
+      throw new Error(`eta-flow-card: custom edge "${key}" needs both from and to.`);
+    }
+  }
+
+  for (const link of config.control_links ?? []) {
+    for (const end of ["from", "to"] as const) {
+      if (!known.has(link[end])) {
+        throw new Error(`eta-flow-card: control_link points ${end} unknown node "${link[end]}".`);
+      }
+    }
+  }
+}
+
+/**
+ * Guess which existing sensor belongs to which node role, by entity id. Each entity
+ * is claimed at most once, and roles are tried most-specific first.
+ */
+export function detectRoleEntities(hass?: HomeAssistant): Record<string, string> {
+  const found: Record<string, string> = {};
+  if (!hass?.states) return found;
+  const sensors = Object.keys(hass.states).filter((id) => id.startsWith("sensor."));
+  const taken = new Set<string>();
+  for (const [role, pattern] of ROLE_ENTITY_HINTS) {
+    const match = sensors.find((id) => !taken.has(id) && pattern.test(id.toLowerCase()));
+    if (match) {
+      found[role] = match;
+      taken.add(match);
+    }
+  }
+  return found;
+}
+
+/** All entity ids the config references, in no particular order. */
+function collectEntityIds(config: EtaFlowCardConfig): string[] {
+  const ids = new Set<string>();
+  const add = (id?: string) => {
+    if (id) ids.add(id);
+  };
+  for (const node of Object.values(config.nodes ?? {})) {
+    if (!node) continue;
+    add(node.primary);
+    add(node.secondary);
+    add(node.state);
+    add(node.level);
+    for (const layer of node.layers ?? []) add(layer);
+  }
+  for (const edge of Object.values(config.edges ?? {})) {
+    if (!edge) continue;
+    add(edge.entity);
+    add(edge.from_entity);
+    add(edge.to_entity);
+    add(edge.label_entity);
+    add(edge.pump?.entity);
+  }
+  add(config.solarpumpe?.entity);
+  return [...ids];
 }
 
 /** Trim a line between two node centers so it starts/ends just outside each ring. */
@@ -88,27 +263,149 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: EtaFlowCardConfig;
 
+  /** Every entity id referenced by the config — drives shouldUpdate. */
+  private _entityIds: string[] = [];
+  /** Rendered width of the diagram in CSS pixels (0 until first measured). */
+  @state() private _widthPx = 0;
+  /** True while none of the configured entities exist — show the layout as a preview. */
+  private _placeholder = false;
+  private _resize?: ResizeObserver;
+
   public static styles = styles;
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this._observeSize();
+  }
+
+  public disconnectedCallback(): void {
+    this._resize?.disconnect();
+    this._resize = undefined;
+    super.disconnectedCallback();
+  }
+
+  protected firstUpdated(): void {
+    this._observeSize();
+  }
+
+  /** Track the rendered width so text can be kept above a readable pixel size. */
+  private _observeSize(): void {
+    if (this._resize) return;
+    const target = this.renderRoot?.querySelector(".flow-wrap");
+    if (!target) return; // not rendered yet — firstUpdated will retry
+    this._resize = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      // Round to whole pixels: sub-pixel jitter would re-render on every scroll.
+      const rounded = Math.round(width);
+      if (rounded !== this._widthPx) this._widthPx = rounded;
+    });
+    this._resize.observe(target);
+  }
+
+  /** Canvas units per CSS pixel (1 when the size isn't known yet). */
+  private _unitsPerPx(): number {
+    return this._widthPx > 0 ? 400 / this._widthPx : 1;
+  }
+
+  /** The smallest font size, in canvas units, that still renders readably. */
+  private _minFont(): number {
+    return MIN_TEXT_PX * this._unitsPerPx();
+  }
+
+  /** A font size in canvas units, never below the readable floor. */
+  private _font(desired: number): number {
+    return Math.max(desired, this._minFont());
+  }
+
+  /** True when the card is too small to carry secondary detail (edge labels, …). */
+  private _isNarrow(): boolean {
+    return this._widthPx > 0 && this._widthPx < NARROW_PX;
+  }
+
+  /**
+   * Fit `text` into `maxWidth` canvas units: shrink the font down to the readable
+   * floor, then squeeze the glyphs (`textLength`) if it still doesn't fit.
+   */
+  private _fit(text: string, desired: number, maxWidth: number): FittedText {
+    const fontSize = this._font(desired);
+    const width = text.length * fontSize * CHAR_EM;
+    if (width <= maxWidth) return { text, fontSize };
+    const shrunk = Math.max(this._minFont(), maxWidth / (text.length * CHAR_EM));
+    const stillWide = text.length * shrunk * CHAR_EM > maxWidth + 0.5;
+    return { text, fontSize: shrunk, textLength: stillWide ? maxWidth : undefined };
+  }
+
+  /** Fit a label by truncating it with an ellipsis rather than squeezing glyphs. */
+  private _fitLabel(text: string, desired: number, maxWidth: number): FittedText {
+    const fontSize = this._font(desired);
+    const maxChars = Math.floor(maxWidth / (fontSize * CHAR_EM));
+    if (text.length <= maxChars) return { text, fontSize };
+    if (maxChars < 2) return { text: text.slice(0, 1), fontSize };
+    return { text: `${text.slice(0, maxChars - 1).trimEnd()}…`, fontSize };
+  }
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     return document.createElement("eta-flow-card-editor") as unknown as LovelaceCardEditor;
   }
 
-  public static getStubConfig(): EtaFlowCardConfig {
-    return {
-      type: `custom:${CARD_NAME}`,
-      title: "Heizung",
-      nodes: { puffer: {}, solar: {}, kessel: {}, warmwasser: {}, heizkreis: {}, aussen: {} },
+  /**
+   * A starting config for the card picker. When the instance already has ETA-looking
+   * sensors, they are mapped onto the matching nodes so the new card shows real data
+   * straight away instead of an empty diagram.
+   */
+  public static getStubConfig(hass?: HomeAssistant): EtaFlowCardConfig {
+    const nodes: Record<string, NodeConfig> = {
+      puffer: {},
+      solar: {},
+      kessel: {},
+      warmwasser: {},
+      heizkreis: {},
+      aussen: {},
     };
+    for (const [id, entity] of Object.entries(detectRoleEntities(hass))) {
+      nodes[id] = { ...nodes[id], primary: entity };
+    }
+    return { type: `custom:${CARD_NAME}`, title: "Heizung", nodes };
   }
 
   public setConfig(config: EtaFlowCardConfig): void {
     if (!config) throw new Error("Invalid configuration");
+    validateConfig(config);
     this._config = { nodes: {}, edges: {}, ...config };
+    this._entityIds = collectEntityIds(this._config);
   }
 
   public getCardSize(): number {
     return 6;
+  }
+
+  /** Sizing hint for Home Assistant's sections (grid) layout. The card is square. */
+  public getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: "auto" };
+  }
+
+  /**
+   * Only re-render when something the card actually shows changed. Without this the
+   * card re-renders on every state change in the instance, which also restarts the
+   * flow-dot animations.
+   */
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (!this._config) return false;
+    if (changed.size > 1 || !changed.has("hass")) return true;
+    const old = changed.get("hass") as HomeAssistant | undefined;
+    if (!old) return true;
+    for (const id of this._entityIds) {
+      if (old.states[id] !== this.hass.states[id]) return true;
+    }
+    // Locale/theme changes affect formatting, so watch those objects too.
+    return old.locale !== this.hass.locale || old.themes !== this.hass.themes;
+  }
+
+  protected willUpdate(): void {
+    // A card whose entities don't exist yet (card picker preview, a fresh manual
+    // card, a renamed integration) shows the full layout with placeholder values
+    // rather than a single lonely circle.
+    this._placeholder = !!this.hass && !this._entityIds.some((id) => this.hass.states[id]);
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -139,6 +436,8 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
       ? `--eta-node-fill: ${this._config.node_background}`
       : nothing;
 
+    const labels = this._layoutLabels(edges, visible);
+
     return html`
       <ha-card style=${cardStyle}>
         ${this._config.title ? html`<div class="title">${this._config.title}</div>` : nothing}
@@ -147,11 +446,174 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
             ${links.map((l) => this._renderControlLink(l.from, l.to))}
             ${edges.map((e) => this._renderEdge(e))} ${edges.map((e) => this._renderPump(e))}
             ${visible.map((id) => this._renderNode(id, edges))}
+            <!-- value labels last: they must never disappear behind a node -->
+            ${[...labels.edges.values()].map((l) => this._renderText("edge-label", l.x, l.y, l))}
+            ${[...labels.pumps.values()].map((l) => this._renderText("pump-label", l.x, l.y, l))}
           </svg>
           ${this._iconOverlay(iconSpecs)}
         </div>
+        ${
+          this._placeholder
+            ? html`<div class="hint">Pick the entities for each node in the card editor.</div>`
+            : nothing
+        }
       </ha-card>
     `;
+  }
+
+  // ---- edge label placement ----------------------------------------------------
+
+  /**
+   * Place edge value labels so they miss the nodes, the node names and each other.
+   *
+   * The default layout is radial, so a fixed perpendicular offset from the midpoint
+   * puts labels straight onto the hub's own name. Instead each label tries a few
+   * positions along its line, on either side, and takes the one that collides least.
+   */
+  private _layoutLabels(edges: ResolvedEdge[], visible: string[]): PlacedLabels {
+    const placed: PlacedLabels = { edges: new Map(), pumps: new Map() };
+    if (this._isNarrow()) return placed; // no room — labels are dropped entirely
+
+    const obstacles: Box[] = [];
+    for (const id of visible) {
+      const pos = this._geom(id);
+      if (!pos) continue;
+      const r = this._nodeRadius(id);
+      obstacles.push({ x1: pos.x - r, y1: pos.y - r, x2: pos.x + r, y2: pos.y + r });
+      const label = this._nodeLabelFitted(id);
+      obstacles.push(textBox(pos.x, this._nodeLabelY(pos, r, label), label));
+    }
+    for (const edge of edges) {
+      const center = this._pumpCenter(edge);
+      if (!center) continue;
+      const r = PUMP_DEFAULTS.radius + 2;
+      obstacles.push({ x1: center.x - r, y1: center.y - r, x2: center.x + r, y2: center.y + r });
+    }
+
+    // Pump names first: they are pinned to their glyph, so edge labels move around them.
+    for (const edge of edges) {
+      const cfg = this._edgePump(edge.key);
+      const center = this._pumpCenter(edge);
+      if (!cfg || !center || cfg.hide_label) continue;
+      const fitted = this._fitLabel(cfg.name ?? PUMP_DEFAULTS.label, 11, 84);
+      const spot = this._placeNear(
+        center,
+        PUMP_DEFAULTS.radius + fitted.fontSize,
+        fitted,
+        obstacles,
+      );
+      if (!spot) continue;
+      obstacles.push(spot.box);
+      placed.pumps.set(edge.key, { ...fitted, x: spot.x, y: spot.y });
+    }
+
+    for (const edge of edges) {
+      const cfg = this._config.edges?.[edge.key];
+      const show = cfg?.show_label ?? this._config.show_edge_labels ?? false;
+      if (!show) continue;
+      const text = edgeValueLabel(cfg, this.hass);
+      if (!text) continue;
+      const from = this._geom(edge.from);
+      const to = this._geom(edge.to);
+      if (!from || !to) continue;
+
+      const { x1, y1, x2, y2 } = trim(
+        from,
+        to,
+        this._nodeRadius(edge.from),
+        this._nodeRadius(edge.to),
+      );
+      const fitted = this._fit(text, 10, 96);
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      const px = -(y2 - y1) / len;
+      const py = (x2 - x1) / len;
+      const offset = fitted.fontSize * 0.9 + 5;
+
+      // Short edges (hub to a close node) leave little room along the line, so the
+      // search also tries pushing the label further out sideways.
+      let best: { cost: number; x: number; y: number; box: Box } | undefined;
+      for (const t of [0.5, 0.62, 0.38, 0.74, 0.26]) {
+        for (const side of [1, -1]) {
+          for (const reach of [1, 1.8, 2.6]) {
+            const away = offset * reach * side;
+            const x = x1 + (x2 - x1) * t + px * away;
+            const y = y1 + (y2 - y1) * t + py * away;
+            const box = textBox(x, y, fitted);
+            if (box.x1 < 1 || box.x2 > 399 || box.y1 < 1 || box.y2 > 399) continue;
+            const cost =
+              collisionCost(box, obstacles) +
+              Math.abs(t - 0.5) * 8 +
+              (reach - 1) * 6 +
+              (side === 1 ? 0 : 1);
+            if (!best || cost < best.cost) best = { cost, x, y, box };
+          }
+        }
+      }
+      if (!best) continue;
+      obstacles.push(best.box);
+      placed.edges.set(edge.key, { ...fitted, x: best.x, y: best.y });
+    }
+    return placed;
+  }
+
+  /**
+   * Put a label just outside a point, trying right/below/left/above and taking the
+   * first direction (by preference) that hits the fewest obstacles.
+   */
+  private _placeNear(
+    center: Point,
+    distance: number,
+    text: FittedText,
+    obstacles: Box[],
+  ): { x: number; y: number; box: Box } | undefined {
+    const halfWidth = (text.textLength ?? text.text.length * text.fontSize * CHAR_EM) / 2;
+    const directions: Point[] = [
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 },
+      { x: 0, y: -1 },
+    ];
+    let best: { cost: number; x: number; y: number; box: Box } | undefined;
+    directions.forEach((dir, i) => {
+      const reach = dir.y === 0 ? distance + halfWidth : distance;
+      const x = center.x + dir.x * reach;
+      const y = center.y + dir.y * reach;
+      const box = textBox(x, y, text);
+      if (box.x1 < 1 || box.x2 > 399 || box.y1 < 1 || box.y2 > 399) return;
+      const cost = collisionCost(box, obstacles) + i * 2;
+      if (!best || cost < best.cost) best = { cost, x, y, box };
+    });
+    return best;
+  }
+
+  /** Midpoint of an edge that carries a pump glyph, if any. */
+  private _pumpCenter(edge: ResolvedEdge): Point | undefined {
+    if (!this._edgePump(edge.key)?.entity) return undefined;
+    const from = this._geom(edge.from);
+    const to = this._geom(edge.to);
+    if (!from || !to) return undefined;
+    return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  }
+
+  /** The node's name, sized and truncated to sit under its circle. */
+  private _nodeLabelFitted(id: string): FittedText {
+    const r = this._nodeRadius(id);
+    return this._fitLabel(this._nodeLabel(id), clamp(r * 0.3, 11, 16), Math.max(2.4 * r, 76));
+  }
+
+  private _nodeLabelY(pos: Point, r: number, label: FittedText): number {
+    return pos.y + r + label.fontSize * 0.8 + 3;
+  }
+
+  private _renderNodeLabel(id: string, pos: Point, r: number) {
+    const label = this._nodeLabelFitted(id);
+    return svg`<text
+      class="node-label"
+      x=${pos.x}
+      y=${this._nodeLabelY(pos, r, label)}
+      dominant-baseline="central"
+      style=${`font-size:${label.fontSize.toFixed(1)}px`}
+    >${label.text}</text>`;
   }
 
   // ---- node model resolvers ----------------------------------------------------
@@ -198,7 +660,7 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
   }
 
   private _hasData(cfg: NodeConfig | undefined): boolean {
-    return !!(cfg?.primary || cfg?.level || cfg?.layers?.length);
+    return !!(cfg?.primary || cfg?.secondary || cfg?.state || cfg?.level || cfg?.layers?.length);
   }
 
   /** The entity a node click opens (primary value, else the first available). */
@@ -213,16 +675,40 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     return cfg?.entity ?? cfg?.label_entity ?? cfg?.from_entity;
   }
 
-  /** Open Home Assistant's more-info dialog, like a standard card. */
-  private _openMoreInfo(entityId?: string): void {
-    if (!entityId) return;
-    this.dispatchEvent(
-      new CustomEvent("hass-more-info", {
-        detail: { entityId },
-        bubbles: true,
-        composed: true,
-      }),
+  /**
+   * Resolve what a shape does when tapped/held: its own actions, then the card-level
+   * defaults, then more-info on the entity it represents (the historical behaviour).
+   */
+  private _actionsFor(entity: string | undefined, cfg?: ActionsConfig): ResolvedActions {
+    const fallback: ActionConfig = entity ? { action: "more-info" } : { action: "none" };
+    return {
+      entity,
+      tap_action: cfg?.tap_action ?? this._config.tap_action ?? fallback,
+      hold_action: cfg?.hold_action ?? this._config.hold_action,
+      double_tap_action: cfg?.double_tap_action ?? this._config.double_tap_action,
+    };
+  }
+
+  private _interactive(actions: ResolvedActions): boolean {
+    return (
+      hasAction(actions.tap_action) ||
+      hasAction(actions.hold_action) ||
+      hasAction(actions.double_tap_action)
     );
+  }
+
+  private _actionHandler(actions: ResolvedActions) {
+    return actionHandler({
+      hasHold: hasAction(actions.hold_action),
+      hasDoubleClick: hasAction(actions.double_tap_action),
+      disabled: !this._interactive(actions),
+    });
+  }
+
+  private _onAction(ev: CustomEvent, actions: ResolvedActions): void {
+    const action = (ev.detail as { action?: string } | undefined)?.action;
+    if (!action) return;
+    handleAction(this, this.hass, actions, action);
   }
 
   /**
@@ -293,6 +779,8 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const cfg = this._cfg(id);
     if (cfg?.hidden) return false;
     if (!this._geom(id)) return false;
+    // In placeholder mode the whole default layout is shown as a preview.
+    if (this._placeholder && ROLES[id]) return true;
     return this._hasData(cfg) || id === PUFFER_ID;
   }
 
@@ -332,31 +820,23 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     // Dots inherit the color of the "source" node of the flow.
     const color = this._nodeColor(flow.reverse ? edge.to : edge.from);
 
-    const showLabel = cfg?.show_label ?? this._config.show_edge_labels ?? false;
-    const label = showLabel ? edgeValueLabel(cfg, this.hass) : undefined;
-    let labelEl: unknown = nothing;
-    if (label) {
-      const mx = (from.x + to.x) / 2;
-      const my = (from.y + to.y) / 2;
-      const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-      const px = -(to.y - from.y) / len; // perpendicular unit
-      const py = (to.x - from.x) / len;
-      const off = this._edgePump(edge.key) ? 22 : 11;
-      labelEl = svg`<text class="edge-label" x=${mx + px * off} y=${my + py * off}
-        dominant-baseline="central">${label}</text>`;
-    }
-
-    const entity = this._edgeEntity(edge.key);
+    const actions = this._actionsFor(this._edgeEntity(edge.key), cfg);
 
     return svg`
-      <path id=${pathId} class="edge-line" d=${d}></path>
-      ${flow.active ? this._renderDots(pathId, flow.duration, flow.reverse, color) : nothing}
-      ${labelEl}
-      ${
-        entity
-          ? svg`<path class="edge-hit" d=${d} @click=${() => this._openMoreInfo(entity)}></path>`
-          : nothing
-      }
+      <g class="edge-group">
+        <path id=${pathId} class="edge-line" d=${d}></path>
+        ${flow.active ? this._renderDots(pathId, flow.duration, flow.reverse, color) : nothing}
+        ${
+          this._interactive(actions)
+            ? svg`<path
+                class="edge-hit"
+                d=${d}
+                ${this._actionHandler(actions)}
+                @action=${(ev: CustomEvent) => this._onAction(ev, actions)}
+              ></path>`
+            : nothing
+        }
+      </g>
     `;
   }
 
@@ -415,10 +895,16 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const on = isActive(this.hass, cfg.entity, cfg.active_states);
     const color = cfg.color ?? this._nodeColor(edge.from);
     const r = PUMP_DEFAULTS.radius;
-    const label = cfg.name ?? PUMP_DEFAULTS.label;
+
+    const actions = this._actionsFor(cfg.entity, cfg);
 
     return svg`
-      <g style=${`color:${color}`} class="clickable" @click=${() => this._openMoreInfo(cfg.entity)}>
+      <g
+        style=${`color:${color}`}
+        class=${this._interactive(actions) ? "clickable" : ""}
+        ${this._actionHandler(actions)}
+        @action=${(ev: CustomEvent) => this._onAction(ev, actions)}
+      >
         <circle
           class=${`pump-ring ${on ? "active" : "inactive"}`}
           cx=${mx}
@@ -426,11 +912,6 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           r=${r}
           stroke="currentColor"
         ></circle>
-        ${
-          cfg.hide_label
-            ? nothing
-            : svg`<text class="pump-label" x=${mx + r + 5} y=${my} dominant-baseline="central">${label}</text>`
-        }
       </g>
     `;
   }
@@ -449,28 +930,37 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const color = this._nodeColor(id);
     const r = this._nodeRadius(id);
     const active = this._nodeActive(id, edges);
-    const hasState = !!disp.state;
-    const hasSecondary = !hasState && !!disp.secondary;
+    const unavailable = this._placeholder || (this._hasData(cfg) && !disp.available);
+    const narrow = this._isNarrow();
+
+    const hasState = !!disp.state && !narrow;
+    const hasSecondary = !hasState && !!disp.secondary && !narrow;
     const hasBelow = hasState || hasSecondary;
 
-    const primaryFont = clamp(r * 0.36, 12, 22).toFixed(1);
-    const secondaryFont = clamp(r * 0.28, 10, 16).toFixed(1);
-    const labelFont = clamp(r * 0.3, 11, 16).toFixed(1);
+    // A configured node whose entities are all gone shows a placeholder rather than
+    // an empty ring — so a dead sensor reads as "no data", not as a rendering bug.
+    const primaryText = disp.primary ?? (unavailable ? NO_VALUE : undefined);
+    const primary = primaryText
+      ? this._fit(primaryText, clamp(r * 0.36, 12, 22), r * 1.55)
+      : undefined;
+    const secondary = hasSecondary
+      ? this._fit(disp.secondary as string, clamp(r * 0.28, 10, 16), r * 1.5)
+      : undefined;
 
     const primaryCY = hasBelow ? pos.y + r * 0.04 : pos.y + r * 0.36;
     const belowCY = pos.y + r * 0.44;
-    const labelY = pos.y + r + Number(labelFont) * 0.8 + 3;
     const hasStrat = !!(cfg?.level || cfg?.layers?.length);
-    const entity = this._nodeEntity(id);
+    const actions = this._actionsFor(this._nodeEntity(id), cfg);
 
     return svg`
       <g
         style=${`color:${color}`}
-        class=${entity ? "clickable" : ""}
-        @click=${() => this._openMoreInfo(entity)}
+        class=${this._interactive(actions) ? "clickable" : ""}
+        ${this._actionHandler(actions)}
+        @action=${(ev: CustomEvent) => this._onAction(ev, actions)}
       >
         <circle
-          class=${`ring ${active ? "active" : "inactive"}`}
+          class=${`ring ${active ? "active" : "inactive"}${unavailable ? " unavailable" : ""}`}
           cx=${pos.x}
           cy=${pos.y}
           r=${r}
@@ -478,38 +968,25 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
           stroke-width=${this._nodeStroke(id)}
         ></circle>
         ${hasStrat ? this._renderStratFill(id, pos, r, cfg, color) : nothing}
-        ${
-          disp.primary
-            ? svg`<text
-                class="node-primary"
-                x=${pos.x}
-                y=${primaryCY}
-                dominant-baseline="central"
-                style=${`font-size:${primaryFont}px`}
-              >${disp.primary}</text>`
-            : nothing
-        }
+        ${primary ? this._renderText("node-primary", pos.x, primaryCY, primary) : nothing}
         ${hasState ? this._renderPill(pos.x, belowCY, r, disp.state as string) : nothing}
-        ${
-          hasSecondary
-            ? svg`<text
-                class="node-secondary"
-                x=${pos.x}
-                y=${belowCY}
-                dominant-baseline="central"
-                style=${`font-size:${secondaryFont}px`}
-              >${disp.secondary}</text>`
-            : nothing
-        }
-        <text
-          class="node-label"
-          x=${pos.x}
-          y=${labelY}
-          dominant-baseline="central"
-          style=${`font-size:${labelFont}px`}
-        >${this._nodeLabel(id)}</text>
+        ${secondary ? this._renderText("node-secondary", pos.x, belowCY, secondary) : nothing}
+        ${this._renderNodeLabel(id, pos, r)}
       </g>
     `;
+  }
+
+  /** A centered, pre-fitted text run. */
+  private _renderText(cls: string, x: number, y: number, t: FittedText) {
+    return svg`<text
+      class=${cls}
+      x=${x}
+      y=${y}
+      dominant-baseline="central"
+      textLength=${ifDefined(t.textLength)}
+      lengthAdjust="spacingAndGlyphs"
+      style=${`font-size:${t.fontSize.toFixed(1)}px`}
+    >${t.text}</text>`;
   }
 
   /** Stratified fill: level = charge %, colored warm-top / cool-bottom by `layers`. */
@@ -564,14 +1041,16 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     `;
   }
 
-  /** A small rounded text pill (e.g. boiler state). */
+  /** A small rounded text pill (e.g. boiler state), never wider than the node. */
   private _renderPill(cx: number, cy: number, r: number, text: string) {
-    const fontSize = clamp(r * 0.26, 9, 13);
-    const w = Math.min(2 * r - 6, text.length * fontSize * 0.62 + 10);
-    const h = fontSize + 6;
+    const maxTextWidth = 2 * r - 16;
+    const fitted = this._fit(text, clamp(r * 0.26, 9, 13), maxTextWidth);
+    const textWidth = fitted.textLength ?? fitted.text.length * fitted.fontSize * CHAR_EM;
+    const w = Math.min(2 * r - 6, textWidth + 10);
+    const h = fitted.fontSize + 6;
     return svg`
       <rect class="pill-bg" x=${cx - w / 2} y=${cy - h / 2} width=${w} height=${h} rx=${h / 2}></rect>
-      <text class="pill-text" x=${cx} y=${cy} dominant-baseline="central" style=${`font-size:${fontSize}px`}>${text}</text>
+      ${this._renderText("pill-text", cx, cy, fitted)}
     `;
   }
 
@@ -586,36 +1065,41 @@ export class EtaFlowCard extends LitElement implements LovelaceCard {
     const r = this._nodeRadius(id);
     const isGauge = this._nodeKind(id) === "gauge" || cfg?.gauge === true;
     const frac = isGauge ? gaugeFraction(cfg, this.hass) : undefined;
-    const valueCY = pos.y + r * 0.2;
-    const entity = this._nodeEntity(id);
+    const unavailable = this._placeholder || (this._hasData(cfg) && !disp.available);
+    const valueCY = pos.y + (frac !== undefined ? r * 0.14 : r * 0.2);
+    const actions = this._actionsFor(this._nodeEntity(id), cfg);
+
+    // Badge values are often wide ("-12.5 °C", "1234 kWh") — fit them to the ring.
+    const valueText = disp.primary ?? (unavailable ? NO_VALUE : undefined);
+    const value = valueText ? this._fit(valueText, 12, r * 1.7) : undefined;
+
+    const gaugeW = r * 1.3;
+    const gaugeY = pos.y + r * 0.52;
 
     return svg`
       <g
         style=${`color:${color}`}
-        class=${entity ? "clickable" : ""}
-        @click=${() => this._openMoreInfo(entity)}
+        class=${this._interactive(actions) ? "clickable" : ""}
+        ${this._actionHandler(actions)}
+        @action=${(ev: CustomEvent) => this._onAction(ev, actions)}
       >
         <circle
-          class="badge"
+          class=${`badge${unavailable ? " unavailable" : ""}`}
           cx=${pos.x}
           cy=${pos.y}
           r=${r}
           stroke="currentColor"
           stroke-width=${this._nodeStroke(id)}
         ></circle>
-        ${
-          disp.primary
-            ? svg`<text class="badge-text" x=${pos.x} y=${valueCY} dominant-baseline="central">${disp.primary}</text>`
-            : nothing
-        }
+        ${value ? this._renderText("badge-text", pos.x, valueCY, value) : nothing}
         ${
           frac !== undefined
             ? svg`
-              <rect class="gauge-bg" x=${pos.x - r * 0.6} y=${pos.y + r * 0.5} width=${r * 1.2} height="4" rx="2"></rect>
-              <rect class="gauge-fill" x=${pos.x - r * 0.6} y=${pos.y + r * 0.5} width=${r * 1.2 * frac} height="4" rx="2"></rect>`
+              <rect class="gauge-bg" x=${pos.x - gaugeW / 2} y=${gaugeY} width=${gaugeW} height="6" rx="3"></rect>
+              <rect class="gauge-fill" x=${pos.x - gaugeW / 2} y=${gaugeY} width=${gaugeW * frac} height="6" rx="3"></rect>`
             : nothing
         }
-        <text class="node-label" x=${pos.x} y=${pos.y + r + 12} dominant-baseline="central">${this._nodeLabel(id)}</text>
+        ${this._renderNodeLabel(id, pos, r)}
       </g>
     `;
   }

@@ -4,6 +4,16 @@
 [![release][release-badge]][release-url]
 ![license][license-badge]
 
+> ### 🤖 Written by an AI, supervised by an optimist
+>
+> An AI agent wrote basically all of this. I provided vibes and a heating system, plus the
+> occasional "no, that's worse." It works, it looks decent, and the code is a fucking crime scene.
+>
+> Still saved me a few hours though, which I put toward things that actually matter, like
+> Reels and a 40-minute video about AI slop ruining open source. Yeah, I know. Didn't stop me.
+>
+> PRs welcome, human authorship strictly optional at this point.
+
 An animated heat-flow card for [Home Assistant][ha] that visualizes an
 **ETA heating** system (pellet, log/wood or combined) — glowing nodes and flowing dots
 showing heat moving between the boiler, buffer tank, solar collectors, hot water and
@@ -50,7 +60,13 @@ Once that integration is set up and you have entities like `sensor.eta_puffer_..
 - Animated flow dots on each connection; **speed and direction driven per edge** by a
   power sensor, a pump/on-off state, or a temperature difference.
 - Nodes you don't configure are hidden, so it adapts to simpler setups.
-- Graphical editor for mapping node entities (edges via YAML).
+- Values follow your Home Assistant **locale and display precision**; an unavailable
+  sensor shows a dash and a dashed ring instead of the word "unavailable".
+- Labels stay readable on **narrow phone columns** (text never shrinks below a legible
+  size, and the fine detail is dropped instead of squeezed).
+- Standard **`tap_action` / `hold_action` / `double_tap_action`** on every node,
+  connection and pump — more-info by default.
+- Graphical editor for nodes *and* connections (layout/rewiring via YAML).
 
 ## Installation
 
@@ -72,8 +88,9 @@ Once that integration is set up and you have entities like `sensor.eta_puffer_..
 
 ## Configuration
 
-Add a **Manual card** and paste the YAML below, or use the graphical editor to map the
-node entities. Every `nodes` and `edges` entry is optional.
+Add the card from the picker — it pre-fills any ETA sensors it recognizes — then refine it
+in the graphical editor (entities, names, icons, colors and per-connection flow settings)
+or paste the YAML below. Every `nodes` and `edges` entry is optional.
 
 ```yaml
 type: custom:eta-flow-card
@@ -165,6 +182,7 @@ always shows. Every node is fully customizable:
 | `x`, `y`       | center position on the `0..400` canvas (required for custom nodes)       |
 | `kind`         | `circle` (default), `badge`, or `gauge`                                  |
 | `hidden`       | force-hide a node even if it has data                                    |
+| `tap_action`, `hold_action`, `double_tap_action` | standard HA actions (default: more-info on the node's entity) |
 
 **Puffer stratification** (any node with `level`/`layers`): `level` sets the fill height
 (0..100 %, falls back to `primary`); `layers` is a top→bottom list of temperature entities
@@ -214,6 +232,25 @@ watts). For a **wood/log boiler** with no power sensor, drive the charge edge fr
 Set `show_edge_labels: true` at the card level (or `show_label: true` per edge) to print the
 driving value beside each connection; `label_entity` overrides which entity the label reads.
 
+### Actions
+
+Nodes, connections and pump glyphs take the standard Lovelace `tap_action`,
+`hold_action` and `double_tap_action`. Tapping opens the more-info dialog of the entity
+the shape represents unless you say otherwise; set them at card level to apply to
+everything, or per node/edge/pump to override:
+
+```yaml
+type: custom:eta-flow-card
+hold_action:
+  action: more-info # hold anything for details
+nodes:
+  kessel:
+    primary: sensor.eta_kessel_temp
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/heizung
+```
+
 **Control links** — thin dashed, non-hydraulic hints (default: Außen → Heizkreis, i.e.
 weather compensation). Override with `control_links: [{ from: aussen, to: heizkreis }]`.
 
@@ -223,12 +260,14 @@ weather compensation). Override with `control_links: [{ from: aussen, to: heizkr
 scripts/setup     # install dependencies
 scripts/develop   # rollup --watch → dist/eta-flow-card.js
 scripts/lint      # eslint + prettier + tsc
+npm test          # vitest (flow logic, gestures, rendering)
 npm run demo      # build + serve a local mock preview (no Home Assistant needed)
 ```
 
 `npm run demo` starts a static server at <http://localhost:8080/demo/> that renders the
 card against mock ETA data, with sliders/toggles to preview how nodes light up and flow
-dots react. See [CONTRIBUTING.md](CONTRIBUTING.md).
+dots react — including card width, unavailable sensors and the empty-card preview.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Disclaimer
 

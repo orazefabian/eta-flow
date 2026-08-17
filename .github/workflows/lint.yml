@@ -10,7 +10,7 @@ on:
 
 jobs:
   lint:
-    name: ESLint, Prettier & Type check
+    name: ESLint, Prettier, Type check & Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,6 +30,9 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build

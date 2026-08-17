@@ -1,10 +1,21 @@
-import type { LovelaceCardConfig } from "custom-card-helpers";
+import type { ActionConfig, LovelaceCardConfig } from "custom-card-helpers";
 
 /** How a connecting line decides whether (and how fast) it flows. */
 export type EdgeType = "power" | "state" | "delta";
 
+/**
+ * Standard Home Assistant interactions. Anything clickable in the card (nodes,
+ * connections, pump glyphs) accepts these; the default is `more-info` on the entity
+ * the shape represents.
+ */
+export interface ActionsConfig {
+  tap_action?: ActionConfig;
+  hold_action?: ActionConfig;
+  double_tap_action?: ActionConfig;
+}
+
 /** A pump glyph rendered on an edge; spins while its entity is active. */
-export interface PumpConfig {
+export interface PumpConfig extends ActionsConfig {
   /** Binary/state entity; the pump glyph spins while active. */
   entity?: string;
   active_states?: string[];
@@ -23,7 +34,7 @@ export type SolarpumpeConfig = PumpConfig;
 
 export type NodeKind = "circle" | "badge" | "gauge";
 
-export interface NodeConfig {
+export interface NodeConfig extends ActionsConfig {
   /** Entity whose state is shown as the node's primary value. */
   primary?: string;
   /** Optional entity shown as a smaller secondary value. */
@@ -78,7 +89,7 @@ export interface NodeConfig {
   max?: number;
 }
 
-export interface EdgeConfig {
+export interface EdgeConfig extends ActionsConfig {
   /** Source node id. Overrides the built-in topology; required for custom edges. */
   from?: string;
   /** Target node id. Overrides the built-in topology; required for custom edges. */
@@ -115,7 +126,7 @@ export interface ControlLinkConfig {
   to: string;
 }
 
-export interface EtaFlowCardConfig extends LovelaceCardConfig {
+export interface EtaFlowCardConfig extends LovelaceCardConfig, ActionsConfig {
   type: string;
   title?: string;
   nodes?: Record<string, NodeConfig>;

@@ -263,16 +263,35 @@
       const DEFAULT_STROKE = 2.5;
 
       // --- Wire card up -------------------------------------------------------------
+      // Entities that the "unavailable sensors" toggle knocks out.
+      const FLAKY = ["sensor.eta_kessel_temp", "sensor.eta_puffer_ladezustand"];
+      let simulateUnavailable = false;
+
       function buildHass() {
         const states = {};
         for (const [id, e] of Object.entries(model)) {
+          const dead = simulateUnavailable && FLAKY.includes(id);
           states[id] = {
             entity_id: id,
-            state: String(e.value),
+            state: dead ? "unavailable" : String(e.value),
             attributes: e.unit ? { unit_of_measurement: e.unit } : {},
           };
         }
-        return { states, localize: () => "", formatEntityState: () => "" };
+        const locale = { language: "de", number_format: "language", time_format: "language" };
+        return {
+          states,
+          locale,
+          localize: () => "",
+          // Mirrors what the Home Assistant frontend does: locale-aware number plus unit.
+          formatEntityState(stateObj) {
+            const num = Number(stateObj.state);
+            const unit = stateObj.attributes?.unit_of_measurement;
+            const value = Number.isFinite(num)
+              ? new Intl.NumberFormat(locale.language, { maximumFractionDigits: 1 }).format(num)
+              : stateObj.state;
+            return unit ? `${value} ${unit}` : value;
+          },
+        };
       }
 
       const card = document.createElement("eta-flow-card");
@@ -389,6 +408,47 @@
         applyConfig();
       };
       hk2Row.appendChild(hk2Toggle);
+
+      // --- Card behaviour (size & degraded states) ----------------------------------
+      const behaviourPanel = panel("Card behaviour");
+      const host = document.querySelector(".card-host");
+
+      const widthRow = row(behaviourPanel, "Card width");
+      const widthInput = document.createElement("input");
+      widthInput.type = "range";
+      Object.assign(widthInput, { min: 220, max: 440, step: 10, value: 440 });
+      const widthVal = document.createElement("span");
+      widthVal.className = "val";
+      widthVal.textContent = "440px";
+      widthInput.oninput = () => {
+        host.style.width = `${widthInput.value}px`;
+        widthVal.textContent = `${widthInput.value}px`;
+      };
+      widthRow.append(widthInput, widthVal);
+
+      const deadRow = row(behaviourPanel, "Unavailable sensors");
+      const deadToggle = document.createElement("input");
+      deadToggle.type = "checkbox";
+      deadToggle.onchange = () => {
+        simulateUnavailable = deadToggle.checked;
+        refresh();
+      };
+      deadRow.appendChild(deadToggle);
+
+      const emptyRow = row(behaviourPanel, "No entities (picker preview)");
+      const emptyToggle = document.createElement("input");
+      emptyToggle.type = "checkbox";
+      emptyToggle.onchange = () => {
+        const next = structuredClone(config);
+        if (emptyToggle.checked) {
+          next.nodes = { puffer: {}, solar: {}, kessel: {}, warmwasser: {}, heizkreis: {} };
+          next.edges = {};
+          delete next.solarpumpe;
+        }
+        card.setConfig(next);
+        refresh();
+      };
+      emptyRow.appendChild(emptyToggle);
 
       // --- Appearance ---------------------------------------------------------------
       const lookPanel = panel("Appearance (per node)");

@@ -125,6 +125,22 @@ export const ROLES: Record<string, RoleDef> = {
   },
 };
 
+/**
+ * Entity-id patterns used to pre-fill a fresh card from an existing ETA integration,
+ * so the card picker shows the user's own system instead of an empty diagram. Ordered
+ * most specific first — `heizkreis2` must win before `heizkreis` can claim an entity.
+ */
+export const ROLE_ENTITY_HINTS: [string, RegExp][] = [
+  ["heizkreis2", /heizkreis[_\s]?2.*(vorlauf|flow|temp)/],
+  ["puffer", /puffer.*(ladezustand|ladung|charge|soc)/],
+  ["kessel", /kessel.*(temp|kesseltemperatur)/],
+  ["solar", /solar.*(kollektor|collector|temp)/],
+  ["warmwasser", /(warmwasser|brauchwasser|dhw).*(temp|ist)/],
+  ["heizkreis", /heizkreis.*(vorlauf|flow)/],
+  ["aussen", /(aussen|außen|outside|outdoor).*temp/],
+  ["vorrat", /(pellet|vorrat|lager|stock)/],
+];
+
 /** Default pump glyph (used by the backward-compatible `solarpumpe:` block). */
 export const PUMP_DEFAULTS = {
   label: "Pumpe",
