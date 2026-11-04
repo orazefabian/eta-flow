@@ -40,7 +40,7 @@ The card follows your active Home Assistant theme:
 already exist in Home Assistant. You must first install an integration that exposes your
 ETA data as sensors:
 
-👉 **[Tidone/homeassistant_eta_integration][eta-integration]** (recommended)
+👉 **[meinETA/homeassistant-eta][eta-integration]** (recommended)
 
 Once that integration is set up and you have entities like `sensor.eta_puffer_...`,
 `sensor.eta_kessel_...`, etc., this card can draw them.
@@ -308,4 +308,4 @@ to describe compatibility. Provided as-is under the [MIT License](LICENSE).
 [license-badge]: https://img.shields.io/github/license/orazefabian/eta-flow
 [ha]: https://www.home-assistant.io/
 [pfcp]: https://github.com/flixlix/power-flow-card-plus
-[eta-integration]: https://github.com/Tidone/homeassistant_eta_integration
+[eta-integration]: https://github.com/meinETA/homeassistant-eta
