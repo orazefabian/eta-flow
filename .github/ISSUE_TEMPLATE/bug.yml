@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for reporting a bug! This project is the **visual card only**. If a
         sensor value is missing or wrong, please report it to the
-        [ETA integration](https://github.com/Tidone/homeassistant_eta_integration) instead.
+        [ETA integration](https://github.com/meinETA/homeassistant-eta) instead.
   - type: textarea
     id: what-happened
     attributes:

@@ -5,7 +5,7 @@ GitHub — issues for bugs and ideas, pull requests for changes.
 
 > **Note:** This project is the **visual card only**. It does not read your heating
 > system directly — it displays entities created by the
-> [ETA integration](https://github.com/Tidone/homeassistant_eta_integration). Sensor
+> [ETA integration](https://github.com/meinETA/homeassistant-eta). Sensor
 > issues belong there.
 
 ## Development setup
